@@ -294,6 +294,14 @@ const app = {
   switchView(viewName) {
     state.activeView = viewName;
     
+    // Close mobile profile sidebar if open
+    const sidebar = document.getElementById('profile-sidebar');
+    const backdrop = document.getElementById('sidebar-backdrop');
+    if (sidebar && backdrop) {
+      sidebar.classList.remove('open');
+      backdrop.classList.remove('active');
+    }
+    
     // Hide all views, show active
     document.querySelectorAll('.view-section').forEach(sect => {
       sect.classList.remove('active');
@@ -324,6 +332,21 @@ const app = {
 
     if (state.devDrawerOpen) {
       this.loadDevData();
+    }
+  },
+
+  toggleProfileSidebar() {
+    const sidebar = document.getElementById('profile-sidebar');
+    const backdrop = document.getElementById('sidebar-backdrop');
+    if (sidebar && backdrop) {
+      const isOpen = sidebar.classList.contains('open');
+      if (isOpen) {
+        sidebar.classList.remove('open');
+        backdrop.classList.remove('active');
+      } else {
+        sidebar.classList.add('open');
+        backdrop.classList.add('active');
+      }
     }
   },
 
