@@ -208,7 +208,8 @@ async function exchangeStravaCode(code, hostUrl) {
   // Real Strava API Call
   console.log(`[Strava API] Requesting Token Exchange. URL: https://www.strava.com/oauth/token. Params:`, {
     client_id: clientId,
-    client_secret: '***MASKED***',
+    client_secret_length: clientSecret ? clientSecret.length : 0,
+    client_secret_preview: clientSecret ? `${clientSecret.substring(0, 3)}...${clientSecret.substring(clientSecret.length - 3)}` : 'undefined',
     code: code ? (code.substring(0, 4) + '...' + code.substring(code.length - 4)) : '',
     grant_type: 'authorization_code'
   });
