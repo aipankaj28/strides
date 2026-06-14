@@ -2,6 +2,11 @@ const { Pool } = require('pg');
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const fs = require('fs');
+const dns = require('dns');
+
+// Force IPv4 DNS resolution — Railway containers cannot reach Supabase over IPv6
+dns.setDefaultResultOrder('ipv4first');
+
 
 let dbType = 'sqlite';
 let pgPool = null;
