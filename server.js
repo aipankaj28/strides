@@ -305,7 +305,7 @@ app.get('/api/auth/strava/callback', async (req, res) => {
     }
   } catch (error) {
     console.error('Error during Strava OAuth callback:', error);
-    res.status(500).send('Strava connection authentication failed.');
+    res.status(500).send(`Strava connection authentication failed: ${error.message}`);
   }
 });
 
