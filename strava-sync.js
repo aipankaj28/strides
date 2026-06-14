@@ -191,8 +191,8 @@ async function updateAllUserConsistency(userId) {
  * Exchanges Strava OAuth authorization code for Access and Refresh tokens
  */
 async function exchangeStravaCode(code, hostUrl) {
-  const clientId = process.env.STRAVA_CLIENT_ID;
-  const clientSecret = process.env.STRAVA_CLIENT_SECRET;
+  const clientId = process.env.STRAVA_CLIENT_ID ? process.env.STRAVA_CLIENT_ID.trim() : undefined;
+  const clientSecret = process.env.STRAVA_CLIENT_SECRET ? process.env.STRAVA_CLIENT_SECRET.trim() : undefined;
 
   if (process.env.DEV_MODE === 'true' && (code === 'mock_code' || !clientId || clientId.startsWith('your_'))) {
     // Generate simulated Strava profile
@@ -254,8 +254,8 @@ async function exchangeStravaCode(code, hostUrl) {
  * Refreshes an expired Strava access token
  */
 async function refreshStravaToken(refreshToken) {
-  const clientId = process.env.STRAVA_CLIENT_ID;
-  const clientSecret = process.env.STRAVA_CLIENT_SECRET;
+  const clientId = process.env.STRAVA_CLIENT_ID ? process.env.STRAVA_CLIENT_ID.trim() : undefined;
+  const clientSecret = process.env.STRAVA_CLIENT_SECRET ? process.env.STRAVA_CLIENT_SECRET.trim() : undefined;
 
   if (refreshToken.startsWith('mock_')) {
     return {

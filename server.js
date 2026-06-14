@@ -235,8 +235,8 @@ app.get('/api/auth/strava', (req, res) => {
     return res.status(400).json({ error: 'Missing user ID.' });
   }
 
-  const clientId = process.env.STRAVA_CLIENT_ID;
-  const redirectUriOverride = process.env.STRAVA_REDIRECT_URI;
+  const clientId = process.env.STRAVA_CLIENT_ID ? process.env.STRAVA_CLIENT_ID.trim() : undefined;
+  const redirectUriOverride = process.env.STRAVA_REDIRECT_URI ? process.env.STRAVA_REDIRECT_URI.trim() : undefined;
   const host = req.get('host');
   const redirectUri = redirectUriOverride || `${req.protocol}://${host}/api/auth/strava/callback`;
 
