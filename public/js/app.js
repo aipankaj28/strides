@@ -349,6 +349,9 @@ const app = {
     const showLogout = ['cart', 'payment', 'connect-strava', 'dashboard'].includes(viewName);
     document.getElementById('logout-btn').style.display = showLogout ? 'block' : 'none';
 
+    // Header profile/Strava toggle is only relevant on the dashboard (CSS hides it on desktop)
+    document.getElementById('header-profile-btn').style.display = viewName === 'dashboard' ? 'flex' : 'none';
+
     // Synchronize browser history hash representation
     if (window.location.hash.split('?')[0] !== `#/${viewName}`) {
       window.location.hash = `#/${viewName}`;

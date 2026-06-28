@@ -17,9 +17,14 @@
       <div class="logo" style="display: flex; align-items: center; gap: 0.75rem;">
         <img src="logo.png" alt="Strides Logo" style="width: 64px; height: 64px; border-radius: 14px; border: 1px solid var(--border-card);"> STRIDES <span>Athlete Portal</span>
       </div>
-      <button id="logout-btn" class="btn-logout" style="display: none;">
-        <i class="fa-solid fa-right-from-bracket"></i> Logout
-      </button>
+      <div style="display: flex; align-items: center; gap: 0.6rem;">
+        <button id="header-profile-btn" class="btn-icon-circle" style="display: none;" onclick="app.toggleProfileSidebar()" aria-label="Show profile and Strava status">
+          <i class="fa-solid fa-user-gear"></i>
+        </button>
+        <button id="logout-btn" class="btn-logout" style="display: none;">
+          <i class="fa-solid fa-right-from-bracket"></i> Logout
+        </button>
+      </div>
     </header>
 
     <!-- 1. GATE VIEW (LOGIN / SIGNUP SELECT) -->
@@ -413,13 +418,7 @@
 
         <!-- Main Dashboard Workspace -->
         <div class="dashboard-main">
-          <!-- Mobile Profile Toggle Button -->
-          <div class="mobile-profile-toggle">
-            <button class="btn-secondary" onclick="app.toggleProfileSidebar()" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 0.5rem; padding: 0.75rem; border-color: var(--primary); color: var(--text-primary); font-family: var(--font-title); font-weight: 600;">
-              <i class="fa-solid fa-user-gear" style="color: var(--primary);"></i> Show Profile & Strava Status
-            </button>
-          </div>
-          
+
           <!-- Stats Indicators -->
           <div class="stats-row">
             <div class="stat-box">

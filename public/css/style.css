@@ -1173,16 +1173,37 @@ tbody tr:hover {
   display: block;
 }
 
-.mobile-profile-toggle {
-  display: none;
+/* Header icon button that opens the profile/Strava sidebar on mobile & tablet */
+.btn-icon-circle {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary);
+  border: 1px solid var(--border-card);
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.btn-icon-circle:hover {
+  border-color: var(--primary);
+  background: var(--primary-glow);
+  color: var(--primary);
+}
+
+@media (min-width: 993px) {
+  /* Sidebar is always visible inline on desktop, so the toggle is redundant */
+  #header-profile-btn {
+    display: none !important;
+  }
 }
 
 @media (max-width: 992px) {
-  .mobile-profile-toggle {
-    display: block;
-    margin-bottom: 1.5rem;
-  }
-
   .profile-sidebar {
     position: fixed;
     left: -320px; /* Hidden offscreen */
@@ -1257,9 +1278,3 @@ tbody tr:hover {
   }
 }
 
-@media (max-width: 480px) {
-  .stats-row {
-    grid-template-columns: 1fr !important;
-    gap: 0.75rem !important;
-  }
-}
