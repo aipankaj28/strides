@@ -13,12 +13,13 @@ The application is fully responsive (optimized for Chrome/Safari on both mobile 
 3. **Simulated Payments**: Renders premium mock checkout processes (simulating Razorpay card interface, dynamic QR scanning, or UPI notification request).
 4. **Nodemailer SMTP System**: Dispatches registration receipts via real SMTP mailers, or logs them to the simulation console if SMTP details are omitted.
 5. **Strava OAuth 2.0 Integration**: Authorizes participant athletes to retrieve profile and activity logs. Prompts users to set profiles to **public**.
-6. **Activity Verification Engine**: Computes athlete metrics against three rules:
+6. **Strava Webhooks**: Receives real-time push events from Strava (new/updated/deleted activities, deauthorization) instead of relying solely on the 10-minute polling cron — see [Strava Webhook Setup](#strava-webhook-setup) below.
+7. **Activity Verification Engine**: Computes athlete metrics against three rules:
    * **Rule 1: Distance match** - Syncs Run (2k to 21k), Cycle (10k to 50k), and Mix (10k to 30k) activities, rejecting entries that fall below the user's selected category.
    * **Rule 2: Daily Consistency streak** - Confirms the user has logged a valid activity every single calendar day starting from **26th July 2026** up to the activity date.
    * **Rule 3: Speed Rankings** - Takes elapsed time in seconds, divides distance in km to calculate average speed, and compiles rankings.
-7. **Global Leaderboard**: Shared league table with drop-down filters for category, gender, and age brackets (`Upto 18`, `18-30`, `30-40`, `40-50`, `50-60`, `60+`).
-8. **Dev Simulator Toolbar**: Sliding test pane (enabled via `DEV_MODE=true` in `.env`) allowing developers to time-travel (manually inject activities for custom dates like July 26th, 2026), log in as any user, trigger sync cron cycles, view mock email inboxes, and wipe test databases.
+8. **Global Leaderboard**: Shared league table with drop-down filters for category, gender, and age brackets (`Upto 18`, `18-30`, `30-40`, `40-50`, `50-60`, `60+`).
+9. **Dev Simulator Toolbar**: Sliding test pane (enabled via `DEV_MODE=true` in `.env`) allowing developers to time-travel (manually inject activities for custom dates like July 26th, 2026), log in as any user, trigger sync cron cycles, view mock email inboxes, and wipe test databases.
 
 ---
 
@@ -48,6 +49,9 @@ STRAVA_CLIENT_ID=your_strava_client_id
 STRAVA_CLIENT_SECRET=your_strava_client_secret
 # Optional redirect override (falls back to hostname/api/auth/strava/callback)
 # STRAVA_REDIRECT_URI=https://your-app.up.railway.app/api/auth/strava/callback
+
+# Strava webhook verify token (any random string — see "Strava Webhook Setup" below)
+STRAVA_WEBHOOK_VERIFY_TOKEN=choose_a_random_secret_string
 
 # SMTP Email configuration
 SMTP_HOST=smtp.gmail.com
@@ -99,6 +103,42 @@ Since the event consistency starts on **26th July 2026**, verifying daily consis
 
 ---
 
+## Strava Webhook Setup
+
+The app polls Strava every 10 minutes in the background, but webhooks let it react to a new/updated/deleted activity (or a user revoking access) within seconds instead. See [Strava's webhook docs](https://developers.strava.com/docs/webhooks/) for background.
+
+**Endpoints added:**
+* `GET /api/strava/webhook` — subscription validation handshake (Strava calls this once when you create the subscription).
+* `POST /api/strava/webhook` — event delivery. Acknowledges with `200` immediately, then processes the event:
+  * `activity` + `create`/`update` → fetches that single activity from Strava and upserts it (same verification rules as the polling sync).
+  * `activity` + `delete` → removes the activity and recalculates the athlete's consistency streak.
+  * `athlete` + `update` with `updates.authorized: "false"` → clears the athlete's stored Strava tokens (they revoked access).
+* `POST /api/admin/strava/webhook-subscribe`, `GET /api/admin/strava/webhook-subscription`, `DELETE /api/admin/strava/webhook-subscription/:id` — one-time subscription management, gated by passing `?client_secret=<your STRAVA_CLIENT_SECRET>`.
+
+**Important constraints from Strava:**
+* Only **one** push subscription is allowed per `client_id`. You only need to create it once, against your production callback URL.
+* The callback URL must be **publicly reachable over HTTPS** — `localhost` will not work. Subscribe only after deploying (e.g. to Railway).
+* Strava validates the subscription by GETing your callback URL and expects `hub.challenge` echoed back, which is why the GET handler must be deployed and reachable *before* you call the subscribe endpoint.
+
+**Setup steps (run once, after deploying):**
+
+1. Set `STRAVA_WEBHOOK_VERIFY_TOKEN` in your production environment to any random string.
+2. Create the subscription by POSTing to your own deployed app:
+   ```bash
+   curl -X POST "https://your-app.up.railway.app/api/admin/strava/webhook-subscribe?client_secret=YOUR_STRAVA_CLIENT_SECRET"
+   ```
+   This calls Strava's `push_subscriptions` API with `callback_url` set to `https://your-app.up.railway.app/api/strava/webhook`. Strava will immediately validate it against the `GET` handler before the call succeeds.
+3. Confirm it's active:
+   ```bash
+   curl "https://your-app.up.railway.app/api/admin/strava/webhook-subscription?client_secret=YOUR_STRAVA_CLIENT_SECRET"
+   ```
+4. To replace it later (e.g. new domain), delete the old one first — Strava rejects a second subscription for the same `client_id`:
+   ```bash
+   curl -X DELETE "https://your-app.up.railway.app/api/admin/strava/webhook-subscription/SUBSCRIPTION_ID?client_secret=YOUR_STRAVA_CLIENT_SECRET"
+   ```
+
+---
+
 ## Deployment on Railway
 
 To host this application on Railway:
@@ -110,7 +150,9 @@ To host this application on Railway:
    * `DATABASE_URL` (Set to your Supabase PostgreSQL URI Connection String).
    * `STRAVA_CLIENT_ID`
    * `STRAVA_CLIENT_SECRET`
+   * `STRAVA_WEBHOOK_VERIFY_TOKEN` (any random string — see [Strava Webhook Setup](#strava-webhook-setup)).
    * `DEV_MODE` (Set to `false` in production to hide the Developer tools pane).
    * SMTP details for emails (`SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`).
 5. Railway will automatically bind the application to the correct `PORT` and run `npm start`.
+6. After the first successful deploy, follow [Strava Webhook Setup](#strava-webhook-setup) to register the push subscription.
 6. **Important**: Go to the Strava Developer Dashboard and add your Railway domain name (e.g. `your-app.up.railway.app`) as the Authorization Callback Domain.

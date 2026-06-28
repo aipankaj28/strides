@@ -309,6 +309,121 @@ app.get('/api/auth/strava/callback', async (req, res) => {
   }
 });
 
+// ---------------------------------------------------------
+// STRAVA WEBHOOK EVENTS
+// https://developers.strava.com/docs/webhooks/
+// ---------------------------------------------------------
+
+// Subscription validation handshake. Strava GETs this once when a push
+// subscription is created and expects the hub.challenge value echoed back.
+app.get('/api/strava/webhook', (req, res) => {
+  const mode = req.query['hub.mode'];
+  const token = req.query['hub.verify_token'];
+  const challenge = req.query['hub.challenge'];
+
+  const expectedToken = process.env.STRAVA_WEBHOOK_VERIFY_TOKEN
+    ? process.env.STRAVA_WEBHOOK_VERIFY_TOKEN.trim()
+    : undefined;
+
+  if (mode === 'subscribe' && token && expectedToken && token === expectedToken) {
+    console.log('[Strava Webhook] Subscription validation succeeded.');
+    return res.status(200).json({ 'hub.challenge': challenge });
+  }
+
+  console.error('[Strava Webhook] Subscription validation failed: token mismatch.');
+  res.sendStatus(403);
+});
+
+// Event delivery endpoint. Strava requires a 200 response within 2 seconds,
+// so we acknowledge immediately and process the event afterwards.
+app.post('/api/strava/webhook', (req, res) => {
+  res.sendStatus(200);
+
+  const { object_type, object_id, aspect_type, owner_id, updates } = req.body || {};
+  console.log('[Strava Webhook] Event received:', JSON.stringify(req.body));
+
+  (async () => {
+    try {
+      if (object_type === 'activity') {
+        const user = await stravaSync.findUserByStravaId(owner_id);
+        if (!user) {
+          console.warn(`[Strava Webhook] No matching user for athlete ${owner_id}.`);
+          return;
+        }
+
+        if (aspect_type === 'create' || aspect_type === 'update') {
+          await stravaSync.fetchAndSaveActivity(user.id, object_id);
+        } else if (aspect_type === 'delete') {
+          await stravaSync.removeActivity(user.id, object_id);
+        }
+      } else if (object_type === 'athlete') {
+        // Deauthorization is delivered as an athlete update with updates.authorized === "false"
+        if (updates && updates.authorized === 'false') {
+          await stravaSync.deauthorizeAthlete(owner_id);
+          console.log(`[Strava Webhook] Athlete ${owner_id} revoked access. Tokens cleared.`);
+        }
+      }
+    } catch (error) {
+      console.error('[Strava Webhook] Error processing event:', error);
+    }
+  })();
+});
+
+// ---------------------------------------------------------
+// STRAVA WEBHOOK SUBSCRIPTION MANAGEMENT (one-time setup, secret-gated)
+// ---------------------------------------------------------
+
+const isStravaAdmin = (req, res, next) => {
+  const secret = req.query.client_secret || (req.body && req.body.client_secret);
+  const expected = process.env.STRAVA_CLIENT_SECRET ? process.env.STRAVA_CLIENT_SECRET.trim() : undefined;
+  if (expected && secret === expected) {
+    return next();
+  }
+  res.status(403).json({ error: 'Invalid or missing client_secret.' });
+};
+
+// Creates the (single, app-wide) push subscription. Run this once after
+// deploying, pointing callbackUrl at this server's public /api/strava/webhook URL.
+app.post('/api/admin/strava/webhook-subscribe', isStravaAdmin, async (req, res) => {
+  try {
+    const host = req.get('host');
+    const callbackUrl = req.body.callbackUrl || `${req.protocol}://${host}/api/strava/webhook`;
+    const verifyToken = process.env.STRAVA_WEBHOOK_VERIFY_TOKEN
+      ? process.env.STRAVA_WEBHOOK_VERIFY_TOKEN.trim()
+      : undefined;
+
+    if (!verifyToken) {
+      return res.status(400).json({ error: 'STRAVA_WEBHOOK_VERIFY_TOKEN is not configured on the server.' });
+    }
+
+    const subscription = await stravaSync.createPushSubscription(callbackUrl, verifyToken);
+    res.json({ success: true, subscription });
+  } catch (error) {
+    console.error('Error creating Strava push subscription:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Views the currently registered subscription.
+app.get('/api/admin/strava/webhook-subscription', isStravaAdmin, async (req, res) => {
+  try {
+    const subscriptions = await stravaSync.viewPushSubscription();
+    res.json(subscriptions);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Deletes a subscription by ID (needed before registering a new callback URL).
+app.delete('/api/admin/strava/webhook-subscription/:id', isStravaAdmin, async (req, res) => {
+  try {
+    await stravaSync.deletePushSubscription(req.params.id);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Public Configuration Endpoint
 app.get('/api/config', (req, res) => {
   res.json({

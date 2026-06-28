@@ -306,6 +306,149 @@ async function refreshStravaToken(refreshToken) {
 }
 
 /**
+ * Returns a valid (non-expired) Strava access token for a user, refreshing
+ * and persisting it first if it's within 5 minutes of expiry.
+ * Returns null if the user has no Strava connection or refresh fails.
+ */
+async function getValidAccessToken(user) {
+  if (!user.strava_access_token) return null;
+
+  let accessToken = user.strava_access_token;
+  let expiresAt = parseInt(user.strava_token_expires_at);
+
+  const currentTime = Math.floor(Date.now() / 1000);
+  if (expiresAt - currentTime < 300) {
+    try {
+      const refreshed = await refreshStravaToken(user.strava_refresh_token);
+      accessToken = refreshed.access_token;
+      expiresAt = refreshed.expires_at;
+
+      const updateQuery = `
+        UPDATE users
+        SET strava_access_token = $1,
+            strava_token_expires_at = $2,
+            strava_refresh_token = COALESCE($3, strava_refresh_token)
+        WHERE id = $4
+      `;
+      await db.query(updateQuery, [accessToken, expiresAt, refreshed.refresh_token || null, user.id]);
+      console.log(`Successfully refreshed Strava token for user: ${user.email}`);
+    } catch (error) {
+      console.error(`Failed to refresh token for user ${user.email}:`, error);
+      return null;
+    }
+  }
+
+  return accessToken;
+}
+
+/**
+ * Normalizes a raw Strava activity object and upserts it into the database
+ * against the given user, recalculating its verification checks.
+ */
+async function saveActivityRecord(user, sa) {
+  const hasGps = sa.start_latlng && sa.start_latlng.length === 2;
+  const startLatLngStr = hasGps ? `${sa.start_latlng[0]},${sa.start_latlng[1]}` : null;
+
+  // Convert meters to km (2 decimal places)
+  const distanceKm = Math.round((sa.distance / 1000) * 100) / 100;
+  const elapsedTimeSec = sa.elapsed_time;
+  const activityDate = sa.start_date_local.substring(0, 10);
+  const classType = sa.type.toLowerCase() === 'run' ? 'run' : (sa.type.toLowerCase() === 'ride' ? 'ride' : sa.type.toLowerCase());
+
+  const targetDist = getTargetDistance(user.activity_distance);
+  const typeMatch = isActivityTypeMatch(user.activity_type, classType);
+  const isValidDistance = typeMatch && (distanceKm >= targetDist);
+  const speed = elapsedTimeSec > 0 ? (distanceKm / elapsedTimeSec) : 0;
+
+  const upsertQuery = `
+    INSERT INTO activities (id, user_id, strava_activity_id, type, distance, elapsed_time, has_gps, start_latlng, activity_date, is_valid_distance, speed)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+    ON CONFLICT (strava_activity_id) DO UPDATE SET
+      distance = EXCLUDED.distance,
+      elapsed_time = EXCLUDED.elapsed_time,
+      has_gps = EXCLUDED.has_gps,
+      start_latlng = EXCLUDED.start_latlng,
+      is_valid_distance = EXCLUDED.is_valid_distance,
+      speed = EXCLUDED.speed
+  `;
+
+  await db.query(upsertQuery, [
+    `act_${sa.id}`,
+    user.id,
+    String(sa.id),
+    classType,
+    distanceKm,
+    elapsedTimeSec,
+    hasGps,
+    startLatLngStr,
+    activityDate,
+    isValidDistance,
+    speed
+  ]);
+}
+
+/**
+ * Fetches a single activity by Strava activity ID for a user and saves it.
+ * Used by the webhook handler to react instantly to create/update events
+ * instead of waiting for the periodic poll.
+ */
+async function fetchAndSaveActivity(userId, stravaActivityId) {
+  const userRes = await db.query('SELECT * FROM users WHERE id = $1', [userId]);
+  if (userRes.rows.length === 0) return;
+  const user = userRes.rows[0];
+
+  const accessToken = await getValidAccessToken(user);
+  if (!accessToken || accessToken.startsWith('mock_')) return;
+
+  try {
+    const response = await fetch(`https://www.strava.com/api/v3/activities/${stravaActivityId}`, {
+      headers: { 'Authorization': `Bearer ${accessToken}` }
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error(`[Strava Webhook] Failed to fetch activity ${stravaActivityId}: ${errText}`);
+      return;
+    }
+
+    const sa = await response.json();
+    await saveActivityRecord(user, sa);
+    await updateAllUserConsistency(userId);
+    console.log(`[Strava Webhook] Saved activity ${stravaActivityId} for user ${user.email}.`);
+  } catch (error) {
+    console.error(`[Strava Webhook] Error fetching activity ${stravaActivityId}:`, error);
+  }
+}
+
+/**
+ * Removes a previously synced activity (Strava "delete" event) and
+ * recalculates the owner's consistency streak.
+ */
+async function removeActivity(userId, stravaActivityId) {
+  await db.query('DELETE FROM activities WHERE strava_activity_id = $1', [String(stravaActivityId)]);
+  await updateAllUserConsistency(userId);
+}
+
+/**
+ * Clears stored Strava tokens for an athlete who revoked access
+ * (Strava "deauthorization" webhook event).
+ */
+async function deauthorizeAthlete(stravaAthleteId) {
+  await db.query(
+    `UPDATE users SET strava_access_token = NULL, strava_refresh_token = NULL, strava_token_expires_at = NULL, strava_profile_public = FALSE WHERE strava_id = $1`,
+    [String(stravaAthleteId)]
+  );
+}
+
+/**
+ * Looks up the internal user record owning a given Strava athlete ID.
+ */
+async function findUserByStravaId(stravaAthleteId) {
+  const res = await db.query('SELECT * FROM users WHERE strava_id = $1', [String(stravaAthleteId)]);
+  return res.rows.length > 0 ? res.rows[0] : null;
+}
+
+/**
  * Synchronize activities from Strava API for a specific user
  */
 async function syncUserActivities(userId) {
@@ -315,31 +458,8 @@ async function syncUserActivities(userId) {
 
   if (!user.strava_access_token) return;
 
-  let accessToken = user.strava_access_token;
-  let expiresAt = parseInt(user.strava_token_expires_at);
-
-  // Check token expiry (refresh if within 5 minutes of expiry)
-  const currentTime = Math.floor(Date.now() / 1000);
-  if (expiresAt - currentTime < 300) {
-    try {
-      const refreshed = await refreshStravaToken(user.strava_refresh_token);
-      accessToken = refreshed.access_token;
-      expiresAt = refreshed.expires_at;
-
-      const updateQuery = `
-        UPDATE users 
-        SET strava_access_token = $1, 
-            strava_token_expires_at = $2,
-            strava_refresh_token = COALESCE($3, strava_refresh_token)
-        WHERE id = $4
-      `;
-      await db.query(updateQuery, [accessToken, expiresAt, refreshed.refresh_token || null, userId]);
-      console.log(`Successfully refreshed Strava token for user: ${user.email}`);
-    } catch (error) {
-      console.error(`Failed to refresh token for user ${user.email}:`, error);
-      return;
-    }
-  }
+  const accessToken = await getValidAccessToken(user);
+  if (!accessToken) return;
 
   let stravaActivities = [];
 
@@ -385,63 +505,8 @@ async function syncUserActivities(userId) {
 
   // Insert/Update activities into the database
   for (const sa of stravaActivities) {
-    const hasGps = sa.start_latlng && sa.start_latlng.length === 2;
-    const startLatLngStr = hasGps ? `${sa.start_latlng[0]},${sa.start_latlng[1]}` : null;
-    
-    // Convert meters to km (2 decimal places)
-    const distanceKm = Math.round((sa.distance / 1000) * 100) / 100;
-    // Format elapsed time (seconds)
-    const elapsedTimeSec = sa.elapsed_time;
-    
-    // Format start date to YYYY-MM-DD
-    const activityDate = sa.start_date_local.substring(0, 10);
-
-    // Activity classification: "Run" or "Ride"
-    const classType = sa.type.toLowerCase() === 'run' ? 'run' : (sa.type.toLowerCase() === 'ride' ? 'ride' : sa.type.toLowerCase());
-
-    const activityObj = {
-      id: `act_${sa.id}`,
-      strava_activity_id: String(sa.id),
-      type: classType,
-      distance: distanceKm,
-      elapsed_time: elapsedTimeSec,
-      has_gps: hasGps,
-      start_latlng: startLatLngStr,
-      activity_date: activityDate
-    };
-
-    // Calculate verification checks (distance threshold)
-    const targetDist = getTargetDistance(user.activity_distance);
-    const typeMatch = isActivityTypeMatch(user.activity_type, classType);
-    const isValidDistance = typeMatch && (distanceKm >= targetDist);
-    const speed = elapsedTimeSec > 0 ? (distanceKm / elapsedTimeSec) : 0;
-
-    const upsertQuery = `
-      INSERT INTO activities (id, user_id, strava_activity_id, type, distance, elapsed_time, has_gps, start_latlng, activity_date, is_valid_distance, speed)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-      ON CONFLICT (strava_activity_id) DO UPDATE SET
-        distance = EXCLUDED.distance,
-        elapsed_time = EXCLUDED.elapsed_time,
-        has_gps = EXCLUDED.has_gps,
-        start_latlng = EXCLUDED.start_latlng,
-        is_valid_distance = EXCLUDED.is_valid_distance,
-        speed = EXCLUDED.speed
-    `;
-
     try {
-      await db.query(upsertQuery, [
-        activityObj.id,
-        userId,
-        activityObj.strava_activity_id,
-        activityObj.type,
-        activityObj.distance,
-        activityObj.elapsed_time,
-        activityObj.has_gps,
-        activityObj.start_latlng,
-        activityObj.activity_date,
-        isValidDistance,
-        speed
-      ]);
+      await saveActivityRecord(user, sa);
     } catch (e) {
       console.error(`Error saving activity ${sa.id}:`, e);
     }
@@ -467,11 +532,84 @@ async function syncAllUsers() {
   }
 }
 
+/**
+ * Registers a webhook push subscription with Strava for this app's client_id.
+ * Strava only allows ONE active subscription per client_id, so this should
+ * be run once (not on every server start). callbackUrl must be a publicly
+ * reachable HTTPS URL pointing at the /api/strava/webhook endpoint, and
+ * Strava will immediately GET it with a verification challenge before
+ * this call resolves.
+ */
+async function createPushSubscription(callbackUrl, verifyToken) {
+  const clientId = process.env.STRAVA_CLIENT_ID ? process.env.STRAVA_CLIENT_ID.trim() : undefined;
+  const clientSecret = process.env.STRAVA_CLIENT_SECRET ? process.env.STRAVA_CLIENT_SECRET.trim() : undefined;
+
+  const response = await fetch('https://www.strava.com/api/v3/push_subscriptions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      client_id: clientId,
+      client_secret: clientSecret,
+      callback_url: callbackUrl,
+      verify_token: verifyToken
+    })
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(`Strava push subscription creation failed: ${JSON.stringify(data)}`);
+  }
+  return data;
+}
+
+/**
+ * Looks up this app's currently registered webhook push subscription(s).
+ */
+async function viewPushSubscription() {
+  const clientId = process.env.STRAVA_CLIENT_ID ? process.env.STRAVA_CLIENT_ID.trim() : undefined;
+  const clientSecret = process.env.STRAVA_CLIENT_SECRET ? process.env.STRAVA_CLIENT_SECRET.trim() : undefined;
+
+  const response = await fetch(
+    `https://www.strava.com/api/v3/push_subscriptions?client_id=${clientId}&client_secret=${clientSecret}`
+  );
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(`Failed to fetch push subscriptions: ${JSON.stringify(data)}`);
+  }
+  return data;
+}
+
+/**
+ * Deletes a webhook push subscription by ID, freeing up the client_id to
+ * register a new callback URL.
+ */
+async function deletePushSubscription(subscriptionId) {
+  const clientId = process.env.STRAVA_CLIENT_ID ? process.env.STRAVA_CLIENT_ID.trim() : undefined;
+  const clientSecret = process.env.STRAVA_CLIENT_SECRET ? process.env.STRAVA_CLIENT_SECRET.trim() : undefined;
+
+  const response = await fetch(
+    `https://www.strava.com/api/v3/push_subscriptions/${subscriptionId}?client_id=${clientId}&client_secret=${clientSecret}`,
+    { method: 'DELETE' }
+  );
+  if (!response.ok && response.status !== 204) {
+    const errText = await response.text();
+    throw new Error(`Failed to delete push subscription: ${errText}`);
+  }
+  return true;
+}
+
 module.exports = {
   exchangeStravaCode,
   refreshStravaToken,
   syncUserActivities,
   syncAllUsers,
   updateAllUserConsistency,
-  getTargetDistance
+  getTargetDistance,
+  fetchAndSaveActivity,
+  removeActivity,
+  deauthorizeAthlete,
+  findUserByStravaId,
+  createPushSubscription,
+  viewPushSubscription,
+  deletePushSubscription
 };
