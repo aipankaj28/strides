@@ -137,6 +137,17 @@ The app polls Strava every 10 minutes in the background, but webhooks let it rea
    curl -X DELETE "https://your-app.up.railway.app/api/admin/strava/webhook-subscription/SUBSCRIPTION_ID?client_secret=YOUR_STRAVA_CLIENT_SECRET"
    ```
 
+If the subscribe call fails with `"GET to callback URL does not return 200"` even though the GET handler works fine when you curl it directly, pass `callbackUrl` explicitly in the request body — some platforms don't report HTTPS correctly to the app on the very first attempt:
+```bash
+curl -X POST "https://your-app.up.railway.app/api/admin/strava/webhook-subscribe?client_secret=YOUR_STRAVA_CLIENT_SECRET" \
+  -H "Content-Type: application/json" \
+  -d '{"callbackUrl": "https://your-app.up.railway.app/api/strava/webhook"}'
+```
+
+### Dashboard auto-refresh
+
+Webhook events update the database instantly, but the browser still needs to ask for the new data. While the Athlete Dashboard view is open, the frontend polls `GET /api/user/dashboard` every `DASHBOARD_POLL_INTERVAL_SECONDS` (default `15`) so newly synced activities and streak updates show up without a manual page refresh or "Sync Activities" click. Polling automatically pauses when the browser tab is hidden or the user navigates to another view, and resumes when the dashboard becomes visible/active again.
+
 ---
 
 ## Deployment on Railway
@@ -151,8 +162,9 @@ To host this application on Railway:
    * `STRAVA_CLIENT_ID`
    * `STRAVA_CLIENT_SECRET`
    * `STRAVA_WEBHOOK_VERIFY_TOKEN` (any random string — see [Strava Webhook Setup](#strava-webhook-setup)).
+   * `DASHBOARD_POLL_INTERVAL_SECONDS` (optional, defaults to `15` — see [Dashboard auto-refresh](#dashboard-auto-refresh)).
    * `DEV_MODE` (Set to `false` in production to hide the Developer tools pane).
    * SMTP details for emails (`SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`).
 5. Railway will automatically bind the application to the correct `PORT` and run `npm start`.
 6. After the first successful deploy, follow [Strava Webhook Setup](#strava-webhook-setup) to register the push subscription.
-6. **Important**: Go to the Strava Developer Dashboard and add your Railway domain name (e.g. `your-app.up.railway.app`) as the Authorization Callback Domain.
+7. **Important**: Go to the Strava Developer Dashboard and add your Railway domain name (e.g. `your-app.up.railway.app`) as the Authorization Callback Domain.

@@ -432,7 +432,8 @@ app.delete('/api/admin/strava/webhook-subscription/:id', isStravaAdmin, async (r
 // Public Configuration Endpoint
 app.get('/api/config', (req, res) => {
   res.json({
-    devMode: process.env.DEV_MODE === 'true'
+    devMode: process.env.DEV_MODE === 'true',
+    dashboardPollSeconds: parseInt(process.env.DASHBOARD_POLL_INTERVAL_SECONDS) || 15
   });
 });
 

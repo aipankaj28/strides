@@ -19,7 +19,9 @@ const state = {
   paymentMethod: 'upi_qr',
   activeTab: 'my-activities',
   activeDevTab: 'dev-users',
-  devDrawerOpen: false
+  devDrawerOpen: false,
+  dashboardPollSeconds: 15,
+  dashboardPollTimer: null
 };
 
 // Formatting Helpers
@@ -54,6 +56,7 @@ const app = {
       const configRes = await fetch('/api/config');
       const config = await configRes.json();
       state.devMode = config.devMode;
+      state.dashboardPollSeconds = config.dashboardPollSeconds || 15;
       const devDrawer = document.getElementById('dev-drawer');
       if (devDrawer) {
         if (config.devMode) {
@@ -75,6 +78,36 @@ const app = {
         this.loadDevData();
       }
     }, 5000);
+
+    // Pause/resume dashboard polling when the tab is hidden/shown, so we
+    // don't keep hitting the server while the user isn't looking at it.
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        this.stopDashboardPolling();
+      } else if (state.activeView === 'dashboard') {
+        this.startDashboardPolling();
+      }
+    });
+  },
+
+  // Polls the dashboard data on an interval while the Athlete Dashboard
+  // view is open, so Strava webhook updates (which land in the database
+  // instantly) show up without the user manually clicking "Sync Activities".
+  startDashboardPolling() {
+    this.stopDashboardPolling();
+    const intervalMs = Math.max(1, state.dashboardPollSeconds) * 1000;
+    state.dashboardPollTimer = setInterval(() => {
+      if (state.activeView === 'dashboard' && state.currentUser) {
+        this.loadDashboard();
+      }
+    }, intervalMs);
+  },
+
+  stopDashboardPolling() {
+    if (state.dashboardPollTimer) {
+      clearInterval(state.dashboardPollTimer);
+      state.dashboardPollTimer = null;
+    }
   },
 
   bindEvents() {
@@ -323,11 +356,16 @@ const app = {
 
     // Run view lifecycle renders
     if (viewName === 'cart') {
+      this.stopDashboardPolling();
       this.selectCategory(state.cart.activity_type || 'run');
     } else if (viewName === 'payment') {
+      this.stopDashboardPolling();
       this.renderPaymentDetails();
     } else if (viewName === 'dashboard') {
       this.loadDashboard();
+      this.startDashboardPolling();
+    } else {
+      this.stopDashboardPolling();
     }
 
     if (state.devDrawerOpen) {
