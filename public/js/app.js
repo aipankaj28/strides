@@ -668,7 +668,9 @@ const app = {
 
       // Populate Sync Log Table
       const tableBody = document.getElementById('activities-table-body');
+      const cardList = document.getElementById('activities-card-list');
       tableBody.innerHTML = '';
+      cardList.innerHTML = '';
 
       if (data.activities.length === 0) {
         tableBody.innerHTML = `
@@ -677,6 +679,11 @@ const app = {
               No activities found. Use the dev panel to add mock records or click sync if connected.
             </td>
           </tr>
+        `;
+        cardList.innerHTML = `
+          <div style="text-align: center; color: var(--text-secondary); padding: 2rem 1rem;">
+            No activities found. Use the dev panel to add mock records or click sync if connected.
+          </div>
         `;
       } else {
         data.activities.forEach(act => {
@@ -689,23 +696,52 @@ const app = {
             <td>${parseFloat(act.distance).toFixed(2)} km</td>
             <td>${formatTime(act.elapsed_time)}</td>
             <td>
-              ${act.has_gps 
-                ? `<span class="check-badge valid" title="${act.start_latlng}"><i class="fa-solid fa-location-dot"></i> GPS OK</span>` 
+              ${act.has_gps
+                ? `<span class="check-badge valid" title="${act.start_latlng}"><i class="fa-solid fa-location-dot"></i> GPS OK</span>`
                 : '<span class="check-badge invalid"><i class="fa-solid fa-triangle-exwarning"></i> Missing</span>'}
             </td>
             <td>
-              ${act.is_valid_distance 
-                ? '<span class="check-badge valid"><i class="fa-solid fa-circle-check"></i> Passed</span>' 
+              ${act.is_valid_distance
+                ? '<span class="check-badge valid"><i class="fa-solid fa-circle-check"></i> Passed</span>'
                 : `<span class="check-badge invalid" title="Expected ${data.targetDistance} km"><i class="fa-solid fa-circle-xmark"></i> Short</span>`}
             </td>
             <td>
-              ${act.is_consistent 
-                ? '<span class="check-badge valid"><i class="fa-solid fa-calendar-check"></i> Streak OK</span>' 
+              ${act.is_consistent
+                ? '<span class="check-badge valid"><i class="fa-solid fa-calendar-check"></i> Streak OK</span>'
                 : '<span class="check-badge invalid" title="Daily streak broken starting 2026-07-26"><i class="fa-solid fa-calendar-times"></i> Broken</span>'}
             </td>
             <td><strong>${formatSpeed(act.speed)}</strong></td>
           `;
           tableBody.appendChild(row);
+
+          const card = document.createElement('div');
+          card.className = 'activity-card';
+          card.innerHTML = `
+            <div class="activity-card-header">
+              <span class="activity-card-title" style="text-transform: capitalize;">
+                ${act.type === 'run' ? '<i class="fa-solid fa-person-running"></i> Run' : '<i class="fa-solid fa-bicycle"></i> Cycle'}
+                &middot; ${act.activity_date}
+              </span>
+            </div>
+            <div class="activity-card-grid">
+              <span>Distance</span><span>${parseFloat(act.distance).toFixed(2)} km</span>
+              <span>Elapsed time</span><span>${formatTime(act.elapsed_time)}</span>
+              <span>Speed</span><span><strong>${formatSpeed(act.speed)}</strong></span>
+              <span>GPS tag</span><span>${act.has_gps ? 'Verified' : 'Missing'}</span>
+            </div>
+            <div class="activity-card-badges">
+              ${act.is_valid_distance
+                ? '<span class="check-badge valid"><i class="fa-solid fa-circle-check"></i> Target met</span>'
+                : `<span class="check-badge invalid" title="Expected ${data.targetDistance} km"><i class="fa-solid fa-circle-xmark"></i> Short</span>`}
+              ${act.is_consistent
+                ? '<span class="check-badge valid"><i class="fa-solid fa-calendar-check"></i> Streak OK</span>'
+                : '<span class="check-badge invalid" title="Daily streak broken starting 2026-07-26"><i class="fa-solid fa-calendar-times"></i> Broken</span>'}
+              ${act.has_gps
+                ? `<span class="check-badge valid" title="${act.start_latlng}"><i class="fa-solid fa-location-dot"></i> GPS OK</span>`
+                : '<span class="check-badge invalid"><i class="fa-solid fa-triangle-exwarning"></i> No GPS</span>'}
+            </div>
+          `;
+          cardList.appendChild(card);
         });
       }
 
@@ -768,22 +804,30 @@ const app = {
       const data = await res.json();
       
       const tbody = document.getElementById('leaderboard-table-body');
+      const cardList = document.getElementById('leaderboard-card-list');
       tbody.innerHTML = '';
+      cardList.innerHTML = '';
 
       if (data.length === 0) {
+        const emptyMsg = 'No athletes qualify on current filters. Consistent activities since 2026-07-26 are required.';
         tbody.innerHTML = `
           <tr>
             <td colspan="9" style="text-align: center; color: var(--text-secondary); padding: 2rem;">
-              No athletes qualify on current filters. Consistent activities since 2026-07-26 are required.
+              ${emptyMsg}
             </td>
           </tr>
+        `;
+        cardList.innerHTML = `
+          <div style="text-align: center; color: var(--text-secondary); padding: 2rem 1rem;">
+            ${emptyMsg}
+          </div>
         `;
         return;
       }
 
       data.forEach(item => {
         const tr = document.createElement('tr');
-        
+
         let rankClass = '';
         if (item.rank === 1) rankClass = 'rank-1';
         else if (item.rank === 2) rankClass = 'rank-2';
@@ -801,6 +845,21 @@ const app = {
           <td>${item.activityDate}</td>
         `;
         tbody.appendChild(tr);
+
+        const card = document.createElement('div');
+        card.className = 'leaderboard-card';
+        card.innerHTML = `
+          <div class="leaderboard-card-rank ${rankClass}">#${item.rank}</div>
+          <div class="leaderboard-card-body">
+            <div class="leaderboard-card-name">${item.name}</div>
+            <div class="leaderboard-card-meta">${item.category} &middot; ${item.ageGroup.replace('plus', '+').replace('upto18', '< 18')} &middot; ${item.gender}</div>
+          </div>
+          <div class="leaderboard-card-stats">
+            <div class="leaderboard-card-distance">${item.distance.toFixed(2)} km</div>
+            <div class="leaderboard-card-speed">${formatSpeed(item.speed)}</div>
+          </div>
+        `;
+        cardList.appendChild(card);
       });
 
     } catch (e) {

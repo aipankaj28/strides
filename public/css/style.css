@@ -34,6 +34,10 @@
   padding: 0;
 }
 
+html {
+  overflow-x: hidden;
+}
+
 body {
   background-color: var(--bg-primary);
   color: var(--text-primary);
@@ -537,14 +541,18 @@ select option {
 /* User Dashboard Layout */
 .dashboard-grid {
   display: grid;
-  grid-template-columns: 320px 1fr;
+  grid-template-columns: 320px minmax(0, 1fr);
   gap: 2rem;
 }
 
 @media (max-width: 992px) {
   .dashboard-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
+}
+
+.dashboard-main {
+  min-width: 0;
 }
 
 .profile-sidebar {
@@ -725,6 +733,115 @@ select option {
   overflow-x: auto;
   border: 1px solid var(--border-card);
   border-radius: 10px;
+}
+
+/* Mobile Card List (replaces tables on small screens) */
+.mobile-card-list {
+  display: none;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.activity-card,
+.leaderboard-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-card);
+  border-radius: 12px;
+  padding: 0.85rem 1rem;
+}
+
+.activity-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.6rem;
+  gap: 0.5rem;
+}
+
+.activity-card-title {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.activity-card-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.4rem 0.75rem;
+  font-size: 0.8rem;
+  margin-bottom: 0.6rem;
+}
+
+.activity-card-grid span:first-child {
+  color: var(--text-secondary);
+}
+
+.activity-card-grid span:last-child {
+  text-align: right;
+}
+
+.activity-card-badges {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.leaderboard-card {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.leaderboard-card-rank {
+  font-weight: 800;
+  font-size: 1.3rem;
+  min-width: 32px;
+  text-align: center;
+}
+
+.leaderboard-card-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.leaderboard-card-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+  margin-bottom: 0.2rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.leaderboard-card-meta {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  text-transform: capitalize;
+}
+
+.leaderboard-card-stats {
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.leaderboard-card-distance {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--primary);
+}
+
+.leaderboard-card-speed {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+@media (max-width: 600px) {
+  .table-wrapper {
+    display: none;
+  }
+
+  .mobile-card-list {
+    display: flex;
+  }
 }
 
 table {
@@ -934,6 +1051,24 @@ tbody tr:hover {
 
 /* Mobile Responsive Optimizations */
 @media (max-width: 600px) {
+  .dev-toggle {
+    top: auto;
+    bottom: 1rem;
+    width: 40px;
+    height: 40px;
+    font-size: 1.1rem;
+  }
+
+  .dev-drawer {
+    width: min(320px, 88vw);
+    right: calc(-1 * min(320px, 88vw));
+  }
+
+  .dev-drawer.open {
+    transform: translateX(calc(-1 * min(320px, 88vw)));
+  }
+
+
   .app-container {
     padding: 1rem 0.75rem;
   }
@@ -1119,5 +1254,12 @@ tbody tr:hover {
   .profile-sidebar .profile-detail-row span:last-child {
     font-size: 0.9rem !important;
     font-weight: 600 !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .stats-row {
+    grid-template-columns: 1fr !important;
+    gap: 0.75rem !important;
   }
 }
