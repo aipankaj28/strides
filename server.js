@@ -25,6 +25,11 @@ function verifyPassword(password, storedHash) {
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Railway terminates TLS and forwards via X-Forwarded-Proto; without this,
+// req.protocol always reports 'http' even on HTTPS requests, which broke
+// the default Strava webhook callback URL (Strava rejects non-HTTPS).
+app.set('trust proxy', true);
+
 // Enable CORS and body parsers
 app.use(cors());
 app.use(bodyParser.json());
