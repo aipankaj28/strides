@@ -4,19 +4,8 @@ const state = {
   activeView: 'gate',
   cart: {
     activity_type: 'run',
-    activity_distance: '5k',
-    tshirt_count: 0,
-    medal_count: 0
+    activity_distance: '5k'
   },
-  pricing: {
-    baseCost: 199,
-    tshirtCost: 0,
-    medalCost: 0,
-    subtotal: 199,
-    gst: 35.82,
-    totalPaid: 234.82
-  },
-  paymentMethod: 'upi_qr',
   activeTab: 'my-activities',
   activeDevTab: 'dev-users',
   devDrawerOpen: false,
@@ -215,10 +204,33 @@ const app = {
       }
     });
 
-    // Cart Submission Handler
-    document.getElementById('cart-form').addEventListener('submit', (e) => {
+    // Cart Submission Handler — confirms the category/distance selection
+    // (no payment is collected) and moves straight to the mandatory Strava step
+    document.getElementById('cart-form').addEventListener('submit', async (e) => {
       e.preventDefault();
-      this.switchView('payment');
+      try {
+        const res = await fetch('/api/checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: state.currentUser.id,
+            activity_type: state.cart.activity_type,
+            activity_distance: state.cart.activity_distance
+          })
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          alert(data.error || 'Could not save your selection.');
+          return;
+        }
+
+        state.currentUser = data;
+        this.switchView('connect-strava');
+      } catch (err) {
+        console.error(err);
+        alert('Connection error saving your selection.');
+      }
     });
 
     // Logout Button
@@ -280,7 +292,6 @@ const app = {
     else if (cleanHash === '#/login') this.switchView('login');
     else if (cleanHash === '#/signup') this.switchView('signup');
     else if (cleanHash === '#/cart' && state.currentUser) this.switchView('cart');
-    else if (cleanHash === '#/payment' && state.currentUser) this.switchView('payment');
     else if (cleanHash === '#/connect-strava' && state.currentUser) this.switchView('connect-strava');
     else if (cleanHash === '#/dashboard' && state.currentUser) this.switchView('dashboard');
     else {
@@ -315,6 +326,8 @@ const app = {
       return;
     }
 
+    // is_paid is repurposed to mean "category/distance selection confirmed"
+    // now that no payment is collected. Strava connection is mandatory.
     if (!user.is_paid) {
       this.switchView('cart');
     } else if (!user.strava_access_token) {
@@ -325,8 +338,15 @@ const app = {
   },
 
   switchView(viewName) {
+    // Strava connection is mandatory — never let the dashboard render
+    // without it, regardless of how this view was reached (hash route,
+    // OAuth redirect, manual navigation, etc.)
+    if (viewName === 'dashboard' && state.currentUser && !state.currentUser.strava_access_token) {
+      viewName = 'connect-strava';
+    }
+
     state.activeView = viewName;
-    
+
     // Close mobile profile sidebar if open
     const sidebar = document.getElementById('profile-sidebar');
     const backdrop = document.getElementById('sidebar-backdrop');
@@ -346,7 +366,7 @@ const app = {
     }
 
     // Toggle Logout Button visibility
-    const showLogout = ['cart', 'payment', 'connect-strava', 'dashboard'].includes(viewName);
+    const showLogout = ['cart', 'connect-strava', 'dashboard'].includes(viewName);
     document.getElementById('logout-btn').style.display = showLogout ? 'block' : 'none';
 
     // Header profile/Strava toggle is only relevant on the dashboard (CSS hides it on desktop)
@@ -361,9 +381,6 @@ const app = {
     if (viewName === 'cart') {
       this.stopDashboardPolling();
       this.selectCategory(state.cart.activity_type || 'run');
-    } else if (viewName === 'payment') {
-      this.stopDashboardPolling();
-      this.renderPaymentDetails();
     } else if (viewName === 'dashboard') {
       this.loadDashboard();
       this.startDashboardPolling();
@@ -392,7 +409,7 @@ const app = {
   },
 
   // ---------------------------------------------------------
-  // CART & PRICE CONTROLLERS
+  // CART / EVENT SELECTION CONTROLLERS
   // ---------------------------------------------------------
 
   selectCategory(cat) {
@@ -444,33 +461,24 @@ const app = {
       state.cart.activity_distance = selectedSelect ? selectedSelect.value : '';
     }
 
-    this.updatePrice();
-  },
-
-  adjustAddon(item, delta) {
-    const field = `${item}_count`;
-    const newVal = Math.max(0, state.cart[field] + delta);
-    state.cart[field] = newVal;
-
-    document.getElementById(`count-${item}`).textContent = newVal;
-    this.updatePrice();
+    this.validateCartSelection();
   },
 
   onCustomDistanceChange(cat) {
-    this.updatePrice();
+    this.validateCartSelection();
   },
 
-  async updatePrice() {
-    if (!state.currentUser) return;
-    
-    // Match active select value
+  // Resolves the active distance selection (including custom distance inputs),
+  // validates minimums, and enables/disables the submit button. No network
+  // call needed here — the selection is only persisted on final submit.
+  validateCartSelection() {
     const cat = state.cart.activity_type;
     const select = document.getElementById(`select-dist-${cat}`);
-    
+
     // Toggle custom container visibility depending on selection
     const runCustom = document.getElementById('custom-dist-run-container');
     const cycleCustom = document.getElementById('custom-dist-cycle-container');
-    
+
     if (cat === 'run' && select && select.value === 'custom') {
       if (runCustom) runCustom.style.display = 'block';
       const customVal = document.getElementById('custom-dist-run').value;
@@ -478,7 +486,7 @@ const app = {
     } else {
       if (runCustom) runCustom.style.display = 'none';
     }
-    
+
     if (cat === 'cycle' && select && select.value === 'custom') {
       if (cycleCustom) cycleCustom.style.display = 'block';
       const customVal = document.getElementById('custom-dist-cycle').value;
@@ -506,7 +514,7 @@ const app = {
         if (errorSpan) errorSpan.style.display = 'none';
       }
     }
-    
+
     if (cat === 'cycle' && select && select.value === 'custom') {
       const val = parseFloat(document.getElementById('custom-dist-cycle').value) || 0;
       const errorSpan = document.getElementById('custom-dist-cycle-error');
@@ -533,104 +541,6 @@ const app = {
         submitBtn.style.opacity = '1';
         submitBtn.style.cursor = 'pointer';
       }
-    }
-
-    try {
-      const res = await fetch('/api/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: state.currentUser.id,
-          activity_type: state.cart.activity_type,
-          activity_distance: state.cart.activity_distance,
-          tshirt_count: state.cart.tshirt_count,
-          medal_count: state.cart.medal_count
-        })
-      });
-      const pricing = await res.json();
-      state.pricing = pricing;
-
-      // Update Pricing UI
-      document.getElementById('receipt-tshirt-qty').textContent = state.cart.tshirt_count;
-      document.getElementById('receipt-medal-qty').textContent = state.cart.medal_count;
-      
-      document.getElementById('receipt-tshirt-cost').textContent = `₹${pricing.tshirtCost.toFixed(2)}`;
-      document.getElementById('receipt-medal-cost').textContent = `₹${pricing.medalCost.toFixed(2)}`;
-      document.getElementById('receipt-subtotal').textContent = `₹${pricing.subtotal.toFixed(2)}`;
-      document.getElementById('receipt-gst').textContent = `₹${pricing.gst.toFixed(2)}`;
-      document.getElementById('receipt-total').textContent = `₹${pricing.totalPaid.toFixed(2)}`;
-
-    } catch (error) {
-      console.error('Price fetch failed:', error);
-    }
-  },
-
-  // ---------------------------------------------------------
-  // CHECKOUT PAYMENT CONTROLLERS
-  // ---------------------------------------------------------
-
-  renderPaymentDetails() {
-    const user = state.currentUser;
-    const pricing = state.pricing;
-    
-    document.getElementById('pay-amount-label').textContent = `₹${pricing.totalPaid.toFixed(2)}`;
-    document.getElementById('pay-user-name').textContent = `${user.name} ${user.surname}`;
-    document.getElementById('pay-user-email').textContent = user.email;
-  },
-
-  selectPaymentMethod(method) {
-    state.paymentMethod = method;
-    
-    // Highlight sidebar buttons
-    document.querySelectorAll('.method-btn').forEach(btn => {
-      btn.classList.remove('active');
-    });
-    event.currentTarget.classList.add('active');
-
-    // Toggle panes
-    document.querySelectorAll('.payment-pane').forEach(pane => {
-      pane.classList.remove('active');
-    });
-    document.getElementById(`pane-${method}`).classList.add('active');
-
-    // Reset spinner
-    document.getElementById('upi-pending').style.display = 'none';
-  },
-
-  submitUPI() {
-    const upiVal = document.getElementById('pay-upi-id').value;
-    if (!upiVal || !upiVal.includes('@')) {
-      alert('Please enter a valid UPI ID (e.g. name@upi).');
-      return;
-    }
-    
-    // Show simulation spinner
-    document.getElementById('upi-pending').style.display = 'block';
-  },
-
-  async simulatePayment(transactionId) {
-    try {
-      const res = await fetch('/api/payment/complete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: state.currentUser.id,
-          paymentMethod: state.paymentMethod,
-          transactionId: transactionId + '_' + Math.floor(Math.random() * 100000),
-          totalPaid: state.pricing.totalPaid
-        })
-      });
-      const data = await res.json();
-      
-      if (res.ok) {
-        state.currentUser = data.user;
-        this.switchView('connect-strava');
-      } else {
-        alert('Payment processing failed.');
-      }
-    } catch (e) {
-      console.error(e);
-      alert('Error updating payment completion status.');
     }
   },
 
@@ -681,12 +591,6 @@ const app = {
       document.getElementById('dash-age').textContent = this.calculateAge(data.user.dob) + ' years';
       document.getElementById('dash-gender').textContent = data.user.gender;
       document.getElementById('dash-event').textContent = `${data.user.activity_type} (${data.user.activity_distance})`;
-      
-      const merchandiseStr = [
-        data.user.tshirt_count > 0 ? `${data.user.tshirt_count} T-Shirt(s)` : null,
-        data.user.medal_count > 0 ? `${data.user.medal_count} Medal(s)` : null
-      ].filter(Boolean).join(', ') || 'None';
-      document.getElementById('dash-addons').textContent = `${merchandiseStr} (₹${data.user.total_paid})`;
 
       // Connection Status Badge
       const statusBadge = document.getElementById('strava-status-badge');
@@ -987,7 +891,7 @@ const app = {
               <strong style="color: var(--primary);">${u.name} ${u.surname}</strong>
               <div style="font-size: 0.7rem; color: var(--text-secondary);">${u.email}</div>
               <div style="font-size: 0.7rem; margin-top: 0.15rem;">
-                Paid: ${u.is_paid ? '✅' : '❌'} | Strava: ${u.strava_access_token ? '✅' : '❌'}
+                Registered: ${u.is_paid ? '✅' : '❌'} | Strava: ${u.strava_access_token ? '✅' : '❌'}
               </div>
             </div>
             <button class="btn-secondary" style="padding: 0.2rem 0.5rem; font-size: 0.7rem;" onclick="app.loginAs('${u.email}')">Log In</button>

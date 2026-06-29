@@ -147,84 +147,37 @@ app.post('/api/login', async (req, res) => {
 });
 
 // ---------------------------------------------------------
-// CART & PAYMENT APIS
+// EVENT CATEGORY SELECTION API
+// No payment is collected — is_paid is repurposed to mean
+// "category/distance selection confirmed" so existing gating
+// logic (routing, leaderboard eligibility) keeps working unchanged.
 // ---------------------------------------------------------
 
-// Checkout Selection API
 app.post('/api/checkout', async (req, res) => {
-  const { userId, activity_type, activity_distance, tshirt_count, medal_count } = req.body;
+  const { userId, activity_type, activity_distance } = req.body;
 
   if (!userId || !activity_type || !activity_distance) {
     return res.status(400).json({ error: 'Missing category, distance, or user identifier.' });
   }
 
   try {
-    // Update selections
     const updateQuery = `
       UPDATE users
       SET activity_type = $1,
           activity_distance = $2,
-          tshirt_count = $3,
-          medal_count = $4
-      WHERE id = $5
-    `;
-    await db.query(updateQuery, [
-      activity_type,
-      activity_distance,
-      parseInt(tshirt_count) || 0,
-      parseInt(medal_count) || 0,
-      userId
-    ]);
-
-    // Calculate receipt
-    const baseCost = 199;
-    const tshirtCost = (parseInt(tshirt_count) || 0) * 799;
-    const medalCost = (parseInt(medal_count) || 0) * 399;
-    const subtotal = baseCost + tshirtCost + medalCost;
-    const gst = Math.round((subtotal * 0.18) * 100) / 100;
-    const totalPaid = Math.round((subtotal + gst) * 100) / 100;
-
-    // Return calculations
-    res.json({
-      baseCost,
-      tshirtCost,
-      medalCost,
-      subtotal,
-      gst,
-      totalPaid
-    });
-  } catch (error) {
-    console.error('Error in checkout computation:', error);
-    res.status(500).json({ error: 'Checkout update failed.' });
-  }
-});
-
-// Complete Payment API
-app.post('/api/payment/complete', async (req, res) => {
-  const { userId, paymentMethod, transactionId, totalPaid } = req.body;
-
-  if (!userId || !transactionId) {
-    return res.status(400).json({ error: 'Missing user ID or transaction ID.' });
-  }
-
-  try {
-    const updateQuery = `
-      UPDATE users
-      SET is_paid = TRUE,
-          payment_id = $1,
-          total_paid = $2
+          is_paid = TRUE
       WHERE id = $3
     `;
-    await db.query(updateQuery, [transactionId, totalPaid, userId]);
+    await db.query(updateQuery, [activity_type, activity_distance, userId]);
 
-    // Fetch user details
     const userRes = await db.query('SELECT * FROM users WHERE id = $1', [userId]);
-    const user = userRes.rows[0];
-
-    res.json({ success: true, user });
+    if (userRes.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+    res.json(userRes.rows[0]);
   } catch (error) {
-    console.error('Error in payment processing:', error);
-    res.status(500).json({ error: 'Failed to record payment transaction.' });
+    console.error('Error saving event category selection:', error);
+    res.status(500).json({ error: 'Failed to save your selection.' });
   }
 });
 

@@ -1,6 +1,6 @@
 # Strides Event Athlete Portal
 
-**Strides** is a production-grade web application built to onboard participants, manage merchandise selections, facilitate checkout, link Strava athlete profiles, sync sports activities in real time, and calculate leaderboard rankings. 
+**Strides** is a production-grade web application built to onboard participants, capture their event category selection, link Strava athlete profiles, sync sports activities in real time, and calculate leaderboard rankings.
 
 The application is fully responsive (optimized for Chrome/Safari on both mobile and desktop), integrates a hybrid database architecture supporting **local SQLite** and **cloud-native Supabase (PostgreSQL)**, and is configured for instant deployment on **Railway**.
 
@@ -9,17 +9,16 @@ The application is fully responsive (optimized for Chrome/Safari on both mobile 
 ## Key Features
 
 1. **Gate Entry**: Dynamic onboarding gate supporting registration form submissions and one-click Email logins.
-2. **Interactive Cart**: Base registration fee (₹199) with increments for adding official T-Shirts (₹799) and commemorative Medals (₹399). Computes live 18% GST subtotals.
-3. **Simulated Payments**: Renders premium mock checkout processes (simulating Razorpay card interface, dynamic QR scanning, or UPI notification request).
-4. **Nodemailer SMTP System**: Dispatches registration receipts via real SMTP mailers, or logs them to the simulation console if SMTP details are omitted.
-5. **Strava OAuth 2.0 Integration**: Authorizes participant athletes to retrieve profile and activity logs. Prompts users to set profiles to **public**.
-6. **Strava Webhooks**: Receives real-time push events from Strava (new/updated/deleted activities, deauthorization) instead of relying solely on the 10-minute polling cron — see [Strava Webhook Setup](#strava-webhook-setup) below.
-7. **Activity Verification Engine**: Computes athlete metrics against three rules:
+2. **Event Category Selection**: Athletes choose Run, Cycle, or Mix and their target distance. No payment is collected — there is no merchandise, checkout, or pricing step.
+3. **Nodemailer SMTP System**: Dispatches registration receipts via real SMTP mailers, or logs them to the simulation console if SMTP details are omitted.
+4. **Strava OAuth 2.0 Integration (Mandatory)**: Every athlete must authorize Strava before reaching their dashboard — there is no skip option. Prompts users to set profiles to **public**.
+5. **Strava Webhooks**: Receives real-time push events from Strava (new/updated/deleted activities, deauthorization) instead of relying solely on the 10-minute polling cron — see [Strava Webhook Setup](#strava-webhook-setup) below.
+6. **Activity Verification Engine**: Computes athlete metrics against three rules:
    * **Rule 1: Distance match** - Syncs Run (2k to 21k), Cycle (10k to 50k), and Mix (10k to 30k) activities, rejecting entries that fall below the user's selected category.
    * **Rule 2: Daily Consistency streak** - Confirms the user has logged a valid activity every single calendar day starting from **26th July 2026** up to the activity date.
    * **Rule 3: Speed Rankings** - Takes elapsed time in seconds, divides distance in km to calculate average speed, and compiles rankings.
-8. **Global Leaderboard**: Shared league table with drop-down filters for category, gender, and age brackets (`Upto 18`, `18-30`, `30-40`, `40-50`, `50-60`, `60+`).
-9. **Dev Simulator Toolbar**: Sliding test pane (enabled via `DEV_MODE=true` in `.env`) allowing developers to time-travel (manually inject activities for custom dates like July 26th, 2026), log in as any user, trigger sync cron cycles, view mock email inboxes, and wipe test databases.
+7. **Global Leaderboard**: Shared league table with drop-down filters for category, gender, and age brackets (`Upto 18`, `18-30`, `30-40`, `40-50`, `50-60`, `60+`).
+8. **Dev Simulator Toolbar**: Sliding test pane (enabled via `DEV_MODE=true` in `.env`) allowing developers to time-travel (manually inject activities for custom dates like July 26th, 2026), log in as any user, trigger sync cron cycles, view mock email inboxes, and wipe test databases.
 
 ---
 

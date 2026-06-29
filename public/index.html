@@ -133,18 +133,18 @@
     <!-- 4. CART / SELECTION VIEW -->
     <section id="view-cart" class="view-section">
       <div class="glass-card" style="max-width: 800px; margin: 0 auto;">
-        <h2 class="card-title">Select Your Activity & Addons</h2>
-        
+        <h2 class="card-title">Select Your Event Category</h2>
+
         <form id="cart-form">
-          <h3 style="margin-bottom: 1rem; color: var(--primary);">Step 1: Choose Your Challenge</h3>
-          
+          <h3 style="margin-bottom: 1rem; color: var(--primary);">Choose Your Challenge</h3>
+
           <div class="category-grid">
             <!-- Run Card -->
             <div class="category-card" id="card-run" onclick="app.selectCategory('run')">
               <div class="category-icon"><i class="fa-solid fa-person-running"></i></div>
               <h3>Running</h3>
-              <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">Base cost: ₹199</p>
-              <select id="select-dist-run" class="distance-select" onclick="event.stopPropagation();" onchange="event.stopPropagation(); app.updatePrice();">
+              <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">Choose your distance below</p>
+              <select id="select-dist-run" class="distance-select" onclick="event.stopPropagation();" onchange="event.stopPropagation(); app.validateCartSelection();">
                 <option value="" disabled selected style="display: none;"></option>
                 <option value="2k">2K</option>
                 <option value="5k">5K</option>
@@ -165,8 +165,8 @@
             <div class="category-card" id="card-cycle" onclick="app.selectCategory('cycle')">
               <div class="category-icon"><i class="fa-solid fa-bicycle"></i></div>
               <h3>Cycling</h3>
-              <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">Base cost: ₹199</p>
-              <select id="select-dist-cycle" class="distance-select" onclick="event.stopPropagation();" onchange="event.stopPropagation(); app.updatePrice();" disabled>
+              <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">Choose your distance below</p>
+              <select id="select-dist-cycle" class="distance-select" onclick="event.stopPropagation();" onchange="event.stopPropagation(); app.validateCartSelection();" disabled>
                 <option value="" disabled selected style="display: none;"></option>
                 <option value="10k">10K</option>
                 <option value="20k">20K</option>
@@ -186,8 +186,8 @@
             <div class="category-card" id="card-mix" onclick="app.selectCategory('mix')">
               <div class="category-icon"><i class="fa-solid fa-person-hiking"></i></div>
               <h3>Mix Event</h3>
-              <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">Base cost: ₹199</p>
-              <select id="select-dist-mix" class="distance-select" onclick="event.stopPropagation();" onchange="event.stopPropagation(); app.updatePrice();" disabled>
+              <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">Choose your distance below</p>
+              <select id="select-dist-mix" class="distance-select" onclick="event.stopPropagation();" onchange="event.stopPropagation(); app.validateCartSelection();" disabled>
                 <option value="" disabled selected style="display: none;"></option>
                 <option value="10k">10K (Run or Bike)</option>
                 <option value="20k">20K (Run or Bike)</option>
@@ -196,147 +196,15 @@
             </div>
           </div>
 
-          <h3 style="margin-top: 2rem; margin-bottom: 1rem; color: var(--primary);">Step 2: Add Event Merchandise</h3>
-          
-          <!-- Tshirt Addon -->
-          <div class="item-row">
-            <div class="item-info">
-              <h4>Official Event T-Shirt</h4>
-              <p>Breathable performance fabric with Strides graphics (₹799 per unit)</p>
-            </div>
-            <div class="counter-controls">
-              <button type="button" class="btn-counter" onclick="app.adjustAddon('tshirt', -1)">-</button>
-              <span id="count-tshirt" class="counter-value">0</span>
-              <button type="button" class="btn-counter" onclick="app.adjustAddon('tshirt', 1)">+</button>
-            </div>
-          </div>
-
-          <!-- Medal Addon -->
-          <div class="item-row">
-            <div class="item-info">
-              <h4>Engraved Commemorative Medal</h4>
-              <p>Premium metal finish detailing your category & distance (₹399 per unit)</p>
-            </div>
-            <div class="counter-controls">
-              <button type="button" class="btn-counter" onclick="app.adjustAddon('medal', -1)">-</button>
-              <span id="count-medal" class="counter-value">0</span>
-              <button type="button" class="btn-counter" onclick="app.adjustAddon('medal', 1)">+</button>
-            </div>
-          </div>
-
-          <!-- Price Calculations Receipt -->
-          <div class="receipt-box">
-            <div class="receipt-line">
-              <span>Event Registration:</span>
-              <span id="receipt-base">₹199.00</span>
-            </div>
-            <div class="receipt-line">
-              <span>Addon T-Shirts (<span id="receipt-tshirt-qty">0</span>):</span>
-              <span id="receipt-tshirt-cost">₹0.00</span>
-            </div>
-            <div class="receipt-line">
-              <span>Addon Medals (<span id="receipt-medal-qty">0</span>):</span>
-              <span id="receipt-medal-cost">₹0.00</span>
-            </div>
-            <div class="receipt-line subtotal">
-              <span>Subtotal:</span>
-              <span id="receipt-subtotal">₹199.00</span>
-            </div>
-            <div class="receipt-line">
-              <span>GST (18%):</span>
-              <span id="receipt-gst">₹35.82</span>
-            </div>
-            <div class="receipt-line total">
-              <span>Total to Pay:</span>
-              <span id="receipt-total">₹234.82</span>
-            </div>
-          </div>
-
           <div style="margin-top: 2rem; display: flex; gap: 1rem;">
             <button type="button" class="btn-secondary" onclick="app.switchView('gate')" style="flex: 1;">Cancel</button>
-            <button type="submit" class="btn-primary" style="flex: 2;">Confirm Selections & Pay <i class="fa-solid fa-credit-card"></i></button>
+            <button type="submit" class="btn-primary" style="flex: 2;">Confirm Selection <i class="fa-solid fa-arrow-right"></i></button>
           </div>
         </form>
       </div>
     </section>
 
-    <!-- 5. PAYMENT VIEW -->
-    <section id="view-payment" class="view-section">
-      <div class="glass-card" style="max-width: 750px; margin: 0 auto;">
-        <h2 class="card-title">Secure Event Checkout</h2>
-        
-        <div style="margin-bottom: 1.5rem; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-card); padding: 1rem; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
-          <div>
-            <p style="font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase;">Amount Due</p>
-            <h3 style="font-size: 1.6rem; color: var(--primary);" id="pay-amount-label">₹0.00</h3>
-          </div>
-          <div style="text-align: right;">
-            <p style="font-size: 0.85rem;" id="pay-user-name"></p>
-            <p style="font-size: 0.75rem; color: var(--text-secondary);" id="pay-user-email"></p>
-          </div>
-        </div>
-
-        <div class="payment-grid">
-          <div class="payment-methods">
-            <button class="method-btn active" onclick="app.selectPaymentMethod('upi_qr')">
-              <i class="fa-solid fa-qrcode"></i> UPI QR Code
-            </button>
-            <button class="method-btn" onclick="app.selectPaymentMethod('upi_id')">
-              <i class="fa-solid fa-mobile-screen"></i> UPI ID
-            </button>
-            <button class="method-btn" onclick="app.selectPaymentMethod('razorpay')">
-              <i class="fa-solid fa-credit-card"></i> Razorpay Card
-            </button>
-          </div>
-
-          <div class="payment-detail-pane">
-            <!-- UPI QR -->
-            <div id="pane-upi_qr" class="payment-pane active">
-              <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 1.25rem;">Scan this QR code using GPay, PhonePe, Paytm, or BHIM to pay</p>
-              <div class="qr-code-mock" onclick="app.simulatePayment('UPI_QR_SUCCESS')">
-                <!-- Fallback premium style vector QR code -->
-                <i class="fa-solid fa-qrcode" style="font-size: 8rem; color: #111827;"></i>
-              </div>
-            </div>
-
-            <!-- UPI ID -->
-            <div id="pane-upi_id" class="payment-pane">
-              <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 1.5rem;">Enter your UPI ID (e.g. mobile@ybl or username@oksbi)</p>
-              <div class="form-group" style="width: 100%; max-width: 320px; margin: 0 auto 1.5rem;">
-                <input type="text" id="pay-upi-id" placeholder="athlete@upi" style="text-align: center;">
-              </div>
-              <button class="btn-primary" onclick="app.submitUPI()">Request Payment <i class="fa-solid fa-bell"></i></button>
-              <div id="upi-pending" style="display: none; margin-top: 1rem; color: var(--warning);">
-                <i class="fa-solid fa-spinner fa-spin"></i> Awaiting approval in your UPI app... 
-                <button class="btn-secondary" onclick="app.simulatePayment('UPI_APP_SUCCESS')" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; margin-left: 0.5rem;">Simulate Approve</button>
-              </div>
-            </div>
-
-            <!-- Razorpay Card -->
-            <div id="pane-razorpay" class="payment-pane">
-              <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 1.5rem;">Simulated Razorpay Direct Debit/Credit Card gateway</p>
-              <div class="form-grid" style="width: 100%; text-align: left; gap: 1rem; margin-bottom: 1.5rem;">
-                <div class="form-group" style="grid-column: span 2;">
-                  <label>Card Number</label>
-                  <input type="text" placeholder="4111 2222 3333 4444" value="4111222233334444">
-                </div>
-                <div class="form-group">
-                  <label>Expiry Date</label>
-                  <input type="text" placeholder="MM/YY" value="12/28">
-                </div>
-                <div class="form-group">
-                  <label>CVV</label>
-                  <input type="password" placeholder="123" value="123">
-                </div>
-              </div>
-              <button class="btn-primary" style="width: 100%;" onclick="app.simulatePayment('RAZORPAY_SUCCESS')">Pay with Razorpay <i class="fa-solid fa-shield-halved"></i></button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- 6. CONNECT STRAVA VIEW -->
+    <!-- 5. CONNECT STRAVA VIEW -->
     <section id="view-connect-strava" class="view-section">
       <div class="glass-card" style="max-width: 600px; margin: 0 auto; text-align: center;">
         <div style="width: 70px; height: 70px; border-radius: 50%; background: var(--success-glow); color: var(--success); display: flex; align-items: center; justify-content: center; font-size: 2.5rem; margin: 0 auto 1.5rem; border: 1px solid var(--success);">
@@ -344,30 +212,28 @@
         </div>
         <h2 style="font-size: 1.8rem; margin-bottom: 0.5rem;">Registration Confirmed!</h2>
         <p style="color: var(--text-secondary); margin-bottom: 2rem;">
-          Your payment has been successfully processed. An email has been sent to you with details.
+          One last step before you can access your dashboard.
         </p>
 
-        <div class="glass-card" style="background: rgba(240, 90, 40, 0.03); border-color: rgba(240, 90, 40, 0.2); text-align: left; padding: 1.5rem; margin-bottom: 2rem;">
+        <div class="glass-card" style="background: rgba(240, 90, 40, 0.03); border-color: rgba(240, 90, 40, 0.2); text-align: left; padding: 1.5rem; margin-bottom: 0;">
           <h3 style="color: #f05a28; display: flex; align-items: center; gap: 0.5rem; font-size: 1.1rem; margin-bottom: 0.75rem;">
             <i class="fa-brands fa-strava"></i> Link Strava Account (Required)
           </h3>
           <p style="font-size: 0.875rem; color: var(--text-primary); margin-bottom: 1rem; line-height: 1.4;">
-            To verify and validate your activities starting **26th July 2026**, please link your Strava account. This grants authorization to pull your run/ride metrics for the next 180 days.
+            To verify and validate your activities starting **26th July 2026**, please link your Strava account. This grants authorization to pull your run/ride metrics for the next 180 days. Linking Strava is mandatory to participate — you cannot continue without it.
           </p>
           <div style="background: rgba(255, 255, 255, 0.04); padding: 0.75rem 1rem; border-radius: 8px; border-left: 3px solid #f05a28; font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 1.5rem;">
             <i class="fa-solid fa-circle-info"></i> <strong>Important:</strong> You must make your Strava profile <strong>Public</strong>. Private profile data cannot be retrieved by our synchronization server.
           </div>
-          
+
           <button class="btn-strava-link" onclick="app.connectStrava()">
             <i class="fa-brands fa-strava"></i> Authorize via Strava OAuth
           </button>
         </div>
-
-        <button class="btn-secondary" onclick="app.switchView('dashboard')">Go to Dashboard without linking</button>
       </div>
     </section>
 
-    <!-- 7. ATHLETE DASHBOARD VIEW -->
+    <!-- 6. ATHLETE DASHBOARD VIEW -->
     <section id="view-dashboard" class="view-section">
       <div class="dashboard-grid">
         <!-- Sidebar Profile info -->
@@ -394,10 +260,6 @@
               <div class="profile-detail-row">
                 <span>Registered Event:</span>
                 <span id="dash-event" style="text-transform: capitalize; font-weight: 600; color: var(--primary);">--</span>
-              </div>
-              <div class="profile-detail-row">
-                <span>Addons Paid:</span>
-                <span id="dash-addons">--</span>
               </div>
             </div>
           </div>
@@ -553,7 +415,7 @@
     </section>
   </div>
 
-  <!-- 8. DEVELOPER DRAWER (FLOATING SIMULATOR PANEL) -->
+  <!-- 7. DEVELOPER DRAWER (FLOATING SIMULATOR PANEL) -->
   <div id="dev-drawer" class="dev-drawer">
     <button class="dev-toggle" onclick="app.toggleDevDrawer()">
       <i class="fa-solid fa-screwdriver-wrench"></i>
