@@ -141,8 +141,8 @@ header {
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .glass-card {
@@ -1206,6 +1206,13 @@ tbody tr:hover {
 }
 
 @media (max-width: 992px) {
+  /* The drawer already has a solid background, so the glass blur-behind
+     effect has nothing transparent to show through. Drop it here only. */
+  .profile-sidebar .glass-card {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
   .profile-sidebar {
     position: fixed;
     left: -320px; /* Hidden offscreen */
