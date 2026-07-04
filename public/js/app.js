@@ -12,8 +12,20 @@ const state = {
   activeDevTab: 'dev-users',
   devDrawerOpen: false,
   dashboardPollSeconds: 15,
-  dashboardPollTimer: null
+  dashboardPollTimer: null,
+  eventStartDate: '2026-07-26'
 };
+
+// Formats a YYYY-MM-DD date string as "26th July 2026" for display text
+function formatEventDate(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00Z');
+  const day = d.getUTCDate();
+  const suffix = (day % 10 === 1 && day !== 11) ? 'st'
+    : (day % 10 === 2 && day !== 12) ? 'nd'
+    : (day % 10 === 3 && day !== 13) ? 'rd' : 'th';
+  const month = d.toLocaleString('en-US', { month: 'long', timeZone: 'UTC' });
+  return `${day}${suffix} ${month} ${d.getUTCFullYear()}`;
+}
 
 // Tier -> distance option lookup for Run/Cycle (Mix has no tiers)
 const TIER_DISTANCE_OPTIONS = {
@@ -65,6 +77,8 @@ const app = {
       const config = await configRes.json();
       state.devMode = config.devMode;
       state.dashboardPollSeconds = config.dashboardPollSeconds || 15;
+      state.eventStartDate = config.eventStartDate || '2026-07-26';
+      this.applyEventStartDate();
       const devDrawer = document.getElementById('dev-drawer');
       if (devDrawer) {
         if (config.devMode) {
@@ -76,6 +90,7 @@ const app = {
     } catch (err) {
       console.error('Failed to load application configuration:', err);
       state.devMode = false;
+      this.applyEventStartDate();
       const devDrawer = document.getElementById('dev-drawer');
       if (devDrawer) devDrawer.style.display = 'none';
     }
@@ -268,6 +283,23 @@ const app = {
       // Pre-fill login
       document.getElementById('login-email').value = savedEmail;
     }
+  },
+
+  // Pushes the configurable event start date into every static display spot
+  // and the dev simulator's default activity-date input.
+  applyEventStartDate() {
+    const formatted = formatEventDate(state.eventStartDate);
+    const connectStravaEl = document.getElementById('connect-strava-event-date');
+    if (connectStravaEl) connectStravaEl.textContent = formatted;
+
+    const activityLogsEl = document.getElementById('activity-logs-event-date');
+    if (activityLogsEl) activityLogsEl.textContent = formatted;
+
+    const mockDateLabelEl = document.getElementById('mock-act-date-label');
+    if (mockDateLabelEl) mockDateLabelEl.textContent = state.eventStartDate;
+
+    const mockDateInput = document.getElementById('mock-act-date');
+    if (mockDateInput) mockDateInput.value = state.eventStartDate;
   },
 
   handleHashRoute() {
@@ -696,7 +728,7 @@ const app = {
             <td>
               ${act.is_consistent
                 ? '<span class="check-badge valid"><i class="fa-solid fa-calendar-check"></i> Streak OK</span>'
-                : '<span class="check-badge invalid" title="Daily streak broken starting 2026-07-26"><i class="fa-solid fa-calendar-times"></i> Broken</span>'}
+                : `<span class="check-badge invalid" title="Daily streak broken starting ${state.eventStartDate}"><i class="fa-solid fa-calendar-times"></i> Broken</span>`}
             </td>
             <td><strong>${formatSpeed(act.speed)}</strong></td>
           `;
@@ -722,7 +754,7 @@ const app = {
                 : `<span class="check-badge invalid" title="Expected ${data.targetDistance} km"><i class="fa-solid fa-circle-xmark"></i> Short</span>`}
               ${act.is_consistent
                 ? '<span class="check-badge valid"><i class="fa-solid fa-calendar-check"></i> Streak OK</span>'
-                : '<span class="check-badge invalid" title="Daily streak broken starting 2026-07-26"><i class="fa-solid fa-calendar-times"></i> Broken</span>'}
+                : `<span class="check-badge invalid" title="Daily streak broken starting ${state.eventStartDate}"><i class="fa-solid fa-calendar-times"></i> Broken</span>`}
             </div>
           `;
           cardList.appendChild(card);

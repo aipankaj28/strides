@@ -221,7 +221,7 @@
             <i class="fa-brands fa-strava"></i> Link Strava Account (Required)
           </h3>
           <p style="font-size: 0.875rem; color: var(--text-primary); margin-bottom: 1rem; line-height: 1.4;">
-            To verify and validate your activities starting **26th July 2026**, please link your Strava account. This grants authorization to pull your run/ride metrics for the next 180 days. Linking Strava is mandatory to participate — you cannot continue without it.
+            To verify and validate your activities starting <strong id="connect-strava-event-date">26th July 2026</strong>, please link your Strava account. This grants authorization to pull your run/ride metrics for the next 180 days. Linking Strava is mandatory to participate — you cannot continue without it.
           </p>
           <div style="background: rgba(255, 255, 255, 0.04); padding: 0.75rem 1rem; border-radius: 8px; border-left: 3px solid #f05a28; font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 1.5rem;">
             <i class="fa-solid fa-circle-info"></i> <strong>Important:</strong> You must make your Strava profile <strong>Public</strong>. Private profile data cannot be retrieved by our synchronization server.
@@ -312,7 +312,7 @@
           <div id="tab-my-activities" class="tab-content">
             <div class="glass-card" style="padding: 1.5rem;">
               <div style="margin-bottom: 1.5rem;">
-                <h3 style="font-size: 1.2rem;">Activity Logs (since 26th July 2026)</h3>
+                <h3 style="font-size: 1.2rem;">Activity Logs (since <span id="activity-logs-event-date">26th July 2026</span>)</h3>
               </div>
 
               <div class="table-wrapper">
@@ -427,7 +427,7 @@
             </select>
           </div>
           <div class="form-group" style="margin-bottom: 0.75rem;">
-            <label>Activity Date (from 2026-07-26)</label>
+            <label>Activity Date (from <span id="mock-act-date-label">2026-07-26</span>)</label>
             <input type="date" id="mock-act-date" value="2026-07-26" required>
           </div>
           <div class="form-group" style="margin-bottom: 0.75rem;">

@@ -1,6 +1,11 @@
 const db = require('./db');
 const { throttledFetch, getUsage } = require('./strava-rate-limiter');
 
+// Official event start date (YYYY-MM-DD) — mirrors EVENT_START_DATE in server.js.
+// Kept as a separate constant here since this module has no Express req/res
+// context; both read from the same env var so they never drift apart.
+const EVENT_START_DATE = process.env.EVENT_START_DATE || '2026-07-26';
+
 // ---------------------------------------------------------------------------
 // Initial-sync queue
 // New athletes are enqueued here at OAuth time instead of being synced
@@ -114,7 +119,7 @@ function getDateRange(startDateStr, endDateStr) {
  * starting from 2026-07-26 up to targetDate.
  */
 async function verifyDailyConsistency(userId, targetDate, activityType, distanceTarget) {
-  const startConsistencyDate = '2026-07-26';
+  const startConsistencyDate = EVENT_START_DATE;
   
   // Find the earliest activity date for this user to determine testing start date
   const earliestRes = await db.query(
@@ -511,7 +516,7 @@ async function syncUserActivities(userId) {
     // Get activities. Pull activities since the start of event preparation.
     // If the event hasn't started yet, fetch activities from the last 30 days for testing.
     // Otherwise, fetch activities starting from the event start date.
-    const eventStart = Math.floor(new Date('2026-07-26').getTime() / 1000);
+    const eventStart = Math.floor(new Date(EVENT_START_DATE).getTime() / 1000);
     const nowEpoch = Math.floor(Date.now() / 1000);
     const queryEpoch = nowEpoch < eventStart ? (nowEpoch - 30 * 24 * 3600) : eventStart;
     const requestUrl = `https://www.strava.com/api/v3/athlete/activities?after=${queryEpoch}&per_page=100`;

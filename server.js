@@ -25,6 +25,12 @@ function verifyPassword(password, storedHash) {
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Official event start date (YYYY-MM-DD). Consistency/streak/breaks
+// calculations, the mandatory-Strava messaging, and the dev simulator's
+// default activity date all key off this. Override via env var; defaults
+// to the originally announced date.
+const EVENT_START_DATE = process.env.EVENT_START_DATE || '2026-07-26';
+
 // Railway terminates TLS and forwards via X-Forwarded-Proto; without this,
 // req.protocol always reports 'http' even on HTTPS requests, which broke
 // the default Strava webhook callback URL (Strava rejects non-HTTPS).
@@ -370,7 +376,8 @@ app.delete('/api/admin/strava/webhook-subscription/:id', isStravaAdmin, async (r
 app.get('/api/config', (req, res) => {
   res.json({
     devMode: process.env.DEV_MODE === 'true',
-    dashboardPollSeconds: parseInt(process.env.DASHBOARD_POLL_INTERVAL_SECONDS) || 15
+    dashboardPollSeconds: parseInt(process.env.DASHBOARD_POLL_INTERVAL_SECONDS) || 15,
+    eventStartDate: EVENT_START_DATE
   });
 });
 
@@ -477,7 +484,7 @@ app.get('/api/leaderboard', async (req, res) => {
       actsByUser[a.user_id].push(a);
     });
 
-    const eventStartDate = '2026-07-26';
+    const eventStartDate = EVENT_START_DATE;
     const today = new Date().toISOString().slice(0, 10);
 
     let leaderboard = users.map(u => {
