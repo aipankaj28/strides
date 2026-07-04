@@ -8,6 +8,7 @@ const state = {
     activity_distance: '5k'
   },
   activeTab: 'leaderboard',
+  leaderboardCategory: 'run',
   activeDevTab: 'dev-users',
   devDrawerOpen: false,
   dashboardPollSeconds: 15,
@@ -773,15 +774,20 @@ const app = {
     document.getElementById(`tab-${tabId}`).classList.add('active');
   },
 
+  // Switches the active event sub-tab (Running/Walking, Cycling, Mixed) under
+  // the Global Leaderboard tab and reloads rankings scoped to that category.
+  switchLeaderboardCategory(category) {
+    state.leaderboardCategory = category;
+    document.querySelectorAll('.subtab-btn').forEach(btn => btn.classList.remove('active'));
+    document.getElementById(`subtab-${category}`).classList.add('active');
+    this.loadLeaderboard();
+  },
+
   async loadLeaderboard() {
-    const category = document.getElementById('filter-category').value;
-    const gender = document.getElementById('filter-gender').value;
-    const ageGroup = document.getElementById('filter-age').value;
+    const category = state.leaderboardCategory;
 
     let url = '/api/leaderboard?';
     if (category) url += `category=${category}&`;
-    if (gender) url += `gender=${gender}&`;
-    if (ageGroup) url += `ageGroup=${ageGroup}&`;
 
     try {
       const res = await fetch(url);
@@ -793,7 +799,7 @@ const app = {
       cardList.innerHTML = '';
 
       if (data.length === 0) {
-        const emptyMsg = 'No athletes qualify on current filters. Consistent activities since 2026-07-26 are required.';
+        const emptyMsg = 'No athletes registered for this event yet.';
         tbody.innerHTML = `
           <tr>
             <td colspan="5" style="text-align: center; color: var(--text-secondary); padding: 2rem;">
@@ -817,11 +823,13 @@ const app = {
         else if (item.rank === 2) rankClass = 'rank-2';
         else if (item.rank === 3) rankClass = 'rank-3';
 
+        const status = this.formatLeaderboardStatus(item);
+
         tr.innerHTML = `
           <td class="rank-column ${rankClass}">#${item.rank}</td>
           <td><strong>${item.name}</strong></td>
           <td style="text-transform: capitalize;">${item.category} (${item.targetDistance})</td>
-          <td style="color: var(--primary); font-weight: 700;">${item.streak} day${item.streak === 1 ? '' : 's'}</td>
+          <td style="color: ${status.color}; font-weight: 700;">${status.label}</td>
           <td>${item.totalDistance.toFixed(2)} km</td>
         `;
         tbody.appendChild(tr);
@@ -836,7 +844,7 @@ const app = {
           </div>
           <div class="leaderboard-card-stats">
             <div class="leaderboard-card-distance">${item.totalDistance.toFixed(2)} km</div>
-            <div class="leaderboard-card-speed">${item.streak} day${item.streak === 1 ? '' : 's'} streak</div>
+            <div class="leaderboard-card-speed" style="color: ${status.color};">${status.label}</div>
           </div>
         `;
         cardList.appendChild(card);
@@ -845,6 +853,17 @@ const app = {
     } catch (e) {
       console.error('Error fetching rankings:', e);
     }
+  },
+
+  // Maps the breaks/isPerfect fields from /api/leaderboard into a display label + color
+  formatLeaderboardStatus(item) {
+    if (item.isPerfect) {
+      return { label: 'Perfect', color: 'var(--success, #22c55e)' };
+    }
+    if (item.breaks === 0) {
+      return { label: 'Consistent (Short)', color: 'var(--secondary)' };
+    }
+    return { label: `${item.breaks} Break${item.breaks === 1 ? '' : 's'}`, color: 'var(--danger, #ef4444)' };
   },
 
   calculateAge(dobStr) {

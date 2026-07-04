@@ -38,28 +38,6 @@ app.use(bodyParser.urlencoded({ extended: true }));
 // Serve static assets from public folder
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Calculate age based on date string (YYYY-MM-DD)
-function calculateAge(dobStr) {
-  const birthDate = new Date(dobStr);
-  const today = new Date();
-  let age = today.getFullYear() - birthDate.getFullYear();
-  const m = today.getMonth() - birthDate.getMonth();
-  if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
-    age--;
-  }
-  return age;
-}
-
-// Map age to age group label
-function getAgeGroup(age) {
-  if (age < 18) return 'upto18';
-  if (age >= 18 && age <= 30) return '18-30';
-  if (age > 30 && age <= 40) return '30-40';
-  if (age > 40 && age <= 50) return '40-50';
-  if (age > 50 && age <= 60) return '50-60';
-  return '60plus';
-}
-
 // ---------------------------------------------------------
 // ONBOARDING & SIGNUP APIS
 // ---------------------------------------------------------
@@ -441,84 +419,126 @@ app.get('/api/user/dashboard', async (req, res) => {
   }
 });
 
+function dateRange(startStr, endStr) {
+  const dates = [];
+  let cur = new Date(startStr + 'T00:00:00Z');
+  const last = new Date(endStr + 'T00:00:00Z');
+  while (cur <= last) {
+    dates.push(cur.toISOString().slice(0, 10));
+    cur.setUTCDate(cur.getUTCDate() + 1);
+  }
+  return dates;
+}
+
 // Global Leaderboard API
+//
+// Every paid athlete in the selected category is shown (no eligibility gate) and
+// ranked using a "breaks" model instead of the old all-or-nothing streak flag:
+//   - Window = [effective start date, today]. Effective start = the athlete's
+//     earliest activity if that's before the official event start (2026-07-26),
+//     otherwise the event start itself. Athletes with no activities use the
+//     event start as-is, so an inactive athlete accrues one break per elapsed day.
+//   - A day is "covered" only if the athlete logged an activity of the CORRECT
+//     type that day (a wrong-type log counts as a break, same as no activity).
+//   - A covered day is "met" if that day's distance satisfies the target.
+//   - breaks = count of uncovered days; isPerfect = zero breaks AND every
+//     covered day was met.
+// Ranking: fewer breaks first; among equal breaks, isPerfect athletes rank
+// above non-perfect ones; ties broken by total distance (sum of everything
+// logged, valid or not). Standard competition ranking — exact ties share a
+// rank number, and the next distinct entry resumes at its true position.
 app.get('/api/leaderboard', async (req, res) => {
-  const { category, gender, ageGroup } = req.query;
+  const { category } = req.query;
 
   try {
-    // Athlete qualifies for the leaderboard once they have at least one activity
-    // that is both distance-valid and consistent. Consistency streak = count of
-    // such activities (each one implies every prior required day was also met).
-    // Total distance = sum of every activity logged by the athlete, valid or not.
-    let sqlQuery = `
-      SELECT
-        u.id as user_id,
-        u.name,
-        u.surname,
-        u.gender,
-        u.dob,
-        u.activity_type,
-        u.activity_distance,
-        (SELECT COUNT(*) FROM activities s
-           WHERE s.user_id = u.id AND s.is_valid_distance = TRUE AND s.is_consistent = TRUE) as streak,
-        (SELECT COALESCE(SUM(distance), 0) FROM activities t
-           WHERE t.user_id = u.id) as total_distance
-      FROM users u
-      WHERE u.is_paid = TRUE
-        AND EXISTS (
-          SELECT 1 FROM activities e
-          WHERE e.user_id = u.id AND e.is_valid_distance = TRUE AND e.is_consistent = TRUE
-        )
-    `;
-
+    let userQuery = 'SELECT id, name, surname, activity_type, activity_distance FROM users WHERE is_paid = TRUE';
     const params = [];
-    let paramIndex = 1;
-
-    // Apply activity category filter (run, cycle, mix)
     if (category) {
-      sqlQuery += ` AND u.activity_type = $${paramIndex}`;
+      userQuery += ' AND activity_type = $1';
       params.push(category);
-      paramIndex++;
+    }
+    const usersRes = await db.query(userQuery, params);
+    const users = usersRes.rows;
+
+    if (users.length === 0) {
+      return res.json([]);
     }
 
-    // Apply gender filter
-    if (gender) {
-      sqlQuery += ` AND u.gender = $${paramIndex}`;
-      params.push(gender);
-      paramIndex++;
-    }
+    const userIds = users.map(u => u.id);
+    const placeholders = userIds.map((_, i) => `$${i + 1}`).join(',');
+    const actsRes = await db.query(
+      `SELECT user_id, activity_date, distance, type, is_valid_distance FROM activities WHERE user_id IN (${placeholders}) ORDER BY activity_date ASC`,
+      userIds
+    );
 
-    const result = await db.query(sqlQuery, params);
+    const actsByUser = {};
+    actsRes.rows.forEach(a => {
+      if (!actsByUser[a.user_id]) actsByUser[a.user_id] = [];
+      actsByUser[a.user_id].push(a);
+    });
 
-    // Map database rows and calculate ages to apply age group filter client-side / node-side
-    let leaderboard = result.rows.map(row => {
-      const age = calculateAge(row.dob);
+    const eventStartDate = '2026-07-26';
+    const today = new Date().toISOString().slice(0, 10);
+
+    let leaderboard = users.map(u => {
+      const acts = actsByUser[u.id] || [];
+      const totalDistance = acts.reduce((sum, a) => sum + parseFloat(a.distance), 0);
+      const effectiveStart = (acts.length > 0 && acts[0].activity_date < eventStartDate)
+        ? acts[0].activity_date
+        : eventStartDate;
+
+      let breaks = 0;
+      let isPerfect = false;
+
+      if (effectiveStart <= today) {
+        const byDate = {};
+        acts.forEach(a => {
+          if (!byDate[a.activity_date]) byDate[a.activity_date] = { typeMatch: false, met: false };
+          if (stravaSync.isActivityTypeMatch(u.activity_type, a.type)) byDate[a.activity_date].typeMatch = true;
+          if (a.is_valid_distance) byDate[a.activity_date].met = true;
+        });
+
+        isPerfect = true;
+        for (const d of dateRange(effectiveStart, today)) {
+          const day = byDate[d];
+          if (!day || !day.typeMatch) {
+            breaks++;
+            isPerfect = false;
+          } else if (!day.met) {
+            isPerfect = false;
+          }
+        }
+      }
+
       return {
-        userId: row.user_id,
-        name: `${row.name} ${row.surname}`,
-        gender: row.gender,
-        age: age,
-        ageGroup: getAgeGroup(age),
-        category: row.activity_type,
-        targetDistance: row.activity_distance,
-        streak: parseInt(row.streak),
-        totalDistance: parseFloat(row.total_distance)
+        userId: u.id,
+        name: `${u.name} ${u.surname}`,
+        category: u.activity_type,
+        targetDistance: u.activity_distance,
+        breaks,
+        isPerfect,
+        totalDistance
       };
     });
 
-    // Apply age group filter
-    if (ageGroup) {
-      leaderboard = leaderboard.filter(item => item.ageGroup === ageGroup);
-    }
+    // Fewer breaks first; among equal breaks, isPerfect ranks above not-perfect; then distance desc
+    leaderboard.sort((a, b) =>
+      a.breaks - b.breaks ||
+      (b.isPerfect - a.isPerfect) ||
+      b.totalDistance - a.totalDistance
+    );
 
-    // Sort leaderboard by consistency streak descending, then total distance descending
-    leaderboard.sort((a, b) => b.streak - a.streak || b.totalDistance - a.totalDistance);
-
-    // Add Rank
-    leaderboard = leaderboard.map((item, idx) => ({
-      rank: idx + 1,
-      ...item
-    }));
+    // Standard competition ranking: ties on (breaks, isPerfect, totalDistance) share a rank
+    let lastRank = 0, lastBreaks = null, lastPerfect = null, lastDistance = null;
+    leaderboard = leaderboard.map((item, idx) => {
+      const tied = lastBreaks === item.breaks && lastPerfect === item.isPerfect && lastDistance === item.totalDistance;
+      const rank = tied ? lastRank : idx + 1;
+      lastRank = rank;
+      lastBreaks = item.breaks;
+      lastPerfect = item.isPerfect;
+      lastDistance = item.totalDistance;
+      return { rank, ...item };
+    });
 
     res.json(leaderboard);
   } catch (error) {

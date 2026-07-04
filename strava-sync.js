@@ -653,6 +653,7 @@ module.exports = {
   enqueueSyncUser,
   updateAllUserConsistency,
   getTargetDistance,
+  isActivityTypeMatch,
   fetchAndSaveActivity,
   removeActivity,
   deauthorizeAthlete,

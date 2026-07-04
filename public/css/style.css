@@ -862,6 +862,34 @@ tbody tr:hover {
   border-bottom-color: var(--primary);
 }
 
+.leaderboard-subtabs {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.leaderboard-subtabs::-webkit-scrollbar {
+  display: none;
+}
+
+.subtab-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  padding: 0.5rem 0.9rem;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border-radius: 6px 6px 0 0;
+  border-bottom: 3px solid transparent;
+  transition: var(--transition);
+  white-space: nowrap;
+}
+
+.subtab-btn.active {
+  color: var(--secondary);
+  border-bottom-color: var(--secondary);
+}
+
 .tab-content {
   display: none;
 }
