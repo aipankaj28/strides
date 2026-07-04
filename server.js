@@ -22,6 +22,48 @@ function verifyPassword(password, storedHash) {
   return hash === verifyHash;
 }
 
+// Checks a plaintext password meets the same strength rule enforced at signup
+function isPasswordStrong(password) {
+  const hasUppercase = /[A-Z]/.test(password);
+  const hasLowercase = /[a-z]/.test(password);
+  const hasNumber = /[0-9]/.test(password);
+  const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+  return password.length >= 8 && hasUppercase && hasLowercase && hasNumber && hasSpecial;
+}
+
+// Hashes a 6-digit OTP with SHA-256 for storage — OTPs are short-lived and
+// single-use, so a fast hash (rather than PBKDF2) is sufficient here.
+function hashOtp(otp) {
+  return crypto.createHash('sha256').update(otp).digest('hex');
+}
+
+// Sends an email via the Resend HTTP API. Uses fetch directly rather than
+// pulling in the resend npm package, consistent with how this app already
+// talks to the Strava REST API elsewhere.
+async function sendEmailViaResend(to, subject, html) {
+  const apiKey = process.env.RESEND_API_KEY;
+  const fromAddress = process.env.RESEND_FROM_EMAIL || 'Strides <onboarding@resend.dev>';
+
+  if (!apiKey) {
+    console.warn(`[Resend] RESEND_API_KEY not set — logging OTP email to console instead of sending.\nTo: ${to}\nSubject: ${subject}\n${html}`);
+    return;
+  }
+
+  const response = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ from: fromAddress, to: [to], subject, html })
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Resend API error (${response.status}): ${errText}`);
+  }
+}
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -127,6 +169,98 @@ app.post('/api/login', async (req, res) => {
   } catch (error) {
     console.error('Error in login:', error);
     res.status(500).json({ error: 'Login failed due to server error.' });
+  }
+});
+
+// ---------------------------------------------------------
+// FORGOT PASSWORD (OTP via Resend)
+// ---------------------------------------------------------
+
+const OTP_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
+
+// Step 1: request an OTP. Always responds with a generic success message
+// regardless of whether the email exists, to avoid leaking which emails
+// are registered.
+app.post('/api/forgot-password', async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+    return res.status(400).json({ error: 'Email ID is required.' });
+  }
+
+  const genericResponse = { message: 'If that email is registered, a verification code has been sent.' };
+
+  try {
+    const userRes = await db.query('SELECT * FROM users WHERE email = $1', [email.toLowerCase().trim()]);
+    if (userRes.rows.length === 0) {
+      return res.json(genericResponse);
+    }
+    const user = userRes.rows[0];
+
+    const otp = String(crypto.randomInt(0, 1000000)).padStart(6, '0');
+    const expiresAt = Date.now() + OTP_EXPIRY_MS;
+
+    await db.query(
+      'UPDATE users SET reset_otp_hash = $1, reset_otp_expires_at = $2 WHERE id = $3',
+      [hashOtp(otp), expiresAt, user.id]
+    );
+
+    await sendEmailViaResend(
+      user.email,
+      'Your Strides Password Reset Code',
+      `<div style="font-family: sans-serif;">
+        <p>Hi ${user.name},</p>
+        <p>Your Strides password reset code is:</p>
+        <p style="font-size: 28px; font-weight: 700; letter-spacing: 4px;">${otp}</p>
+        <p>This code expires in 10 minutes. If you didn't request this, you can safely ignore this email.</p>
+      </div>`
+    );
+
+    res.json(genericResponse);
+  } catch (error) {
+    console.error('Error in forgot-password:', error);
+    res.status(500).json({ error: 'Failed to process password reset request.' });
+  }
+});
+
+// Step 2: verify the OTP and set a new password
+app.post('/api/reset-password', async (req, res) => {
+  const { email, otp, newPassword } = req.body;
+
+  if (!email || !otp || !newPassword) {
+    return res.status(400).json({ error: 'Email, verification code, and new password are all required.' });
+  }
+
+  if (!isPasswordStrong(newPassword)) {
+    return res.status(400).json({ error: 'Password must be at least 8 characters long and contain uppercase, lowercase, numbers, and special characters.' });
+  }
+
+  try {
+    const userRes = await db.query('SELECT * FROM users WHERE email = $1', [email.toLowerCase().trim()]);
+    if (userRes.rows.length === 0) {
+      return res.status(400).json({ error: 'Invalid or expired verification code.' });
+    }
+    const user = userRes.rows[0];
+
+    if (!user.reset_otp_hash || !user.reset_otp_expires_at) {
+      return res.status(400).json({ error: 'No password reset was requested for this email.' });
+    }
+    if (Date.now() > parseInt(user.reset_otp_expires_at)) {
+      return res.status(400).json({ error: 'Verification code has expired. Please request a new one.' });
+    }
+    if (hashOtp(otp) !== user.reset_otp_hash) {
+      return res.status(400).json({ error: 'Incorrect verification code.' });
+    }
+
+    await db.query(
+      'UPDATE users SET password_hash = $1, reset_otp_hash = NULL, reset_otp_expires_at = NULL WHERE id = $2',
+      [hashPassword(newPassword), user.id]
+    );
+
+    res.json({ message: 'Password reset successfully. Please log in with your new password.' });
+  } catch (error) {
+    console.error('Error in reset-password:', error);
+    res.status(500).json({ error: 'Failed to reset password.' });
   }
 });
 

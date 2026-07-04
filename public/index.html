@@ -62,13 +62,67 @@
             <label for="login-email">Email Address</label>
             <input type="email" id="login-email" required placeholder="name@domain.com">
           </div>
-          <div class="form-group" style="margin-bottom: 1.5rem;">
+          <div class="form-group" style="margin-bottom: 0.5rem;">
             <label for="login-password">Password</label>
             <input type="password" id="login-password" required placeholder="••••••••">
+          </div>
+          <div style="text-align: right; margin-bottom: 1.5rem;">
+            <a href="#" onclick="event.preventDefault(); app.switchView('forgot-password');" style="font-size: 0.85rem; color: var(--text-secondary);">Forgot password?</a>
           </div>
           <div style="display: flex; gap: 1rem;">
             <button type="button" class="btn-secondary" onclick="app.switchView('gate')" style="flex: 1;">Back</button>
             <button type="submit" class="btn-primary" style="flex: 2;">Login <i class="fa-solid fa-arrow-right-to-bracket"></i></button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <!-- 2b. FORGOT PASSWORD VIEW (request OTP) -->
+    <section id="view-forgot-password" class="view-section">
+      <div class="glass-card" style="max-width: 450px; margin: 0 auto;">
+        <h2 class="card-title">Forgot Password</h2>
+        <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1.5rem;">
+          Enter your registered email address and we'll send you a verification code.
+        </p>
+        <form id="forgot-password-form">
+          <div class="form-group" style="margin-bottom: 1.5rem;">
+            <label for="forgot-password-email">Email Address</label>
+            <input type="email" id="forgot-password-email" required placeholder="name@domain.com">
+          </div>
+          <div id="forgot-password-error" style="color: var(--danger); font-size: 0.85rem; margin-bottom: 1rem; display: none;"></div>
+          <div style="display: flex; gap: 1rem;">
+            <button type="button" class="btn-secondary" onclick="app.switchView('login')" style="flex: 1;">Back</button>
+            <button type="submit" class="btn-primary" style="flex: 2;">Send Code <i class="fa-solid fa-paper-plane"></i></button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <!-- 2c. RESET PASSWORD VIEW (enter OTP + new password) -->
+    <section id="view-reset-password" class="view-section">
+      <div class="glass-card" style="max-width: 450px; margin: 0 auto;">
+        <h2 class="card-title">Enter Verification Code</h2>
+        <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1.5rem;">
+          We sent a 6-digit code to <strong id="reset-password-email-display"></strong>. Enter it below along with your new password.
+        </p>
+        <form id="reset-password-form">
+          <div class="form-group" style="margin-bottom: 1.25rem;">
+            <label for="reset-password-otp">Verification Code</label>
+            <input type="text" id="reset-password-otp" required maxlength="6" pattern="[0-9]{6}" placeholder="123456" style="letter-spacing: 4px; text-align: center; font-size: 1.2rem;">
+          </div>
+          <div class="form-group" style="margin-bottom: 1.25rem;">
+            <label for="reset-password-new">New Password</label>
+            <input type="password" id="reset-password-new" required placeholder="••••••••">
+            <span style="font-size: 0.75rem; color: var(--text-secondary);">Min 8 characters, containing uppercase, lowercase, numbers, and symbols.</span>
+          </div>
+          <div class="form-group" style="margin-bottom: 1.5rem;">
+            <label for="reset-password-confirm">Confirm New Password</label>
+            <input type="password" id="reset-password-confirm" required placeholder="••••••••">
+          </div>
+          <div id="reset-password-error" style="color: var(--danger); font-size: 0.85rem; margin-bottom: 1rem; display: none;"></div>
+          <div style="display: flex; gap: 1rem;">
+            <button type="button" class="btn-secondary" onclick="app.switchView('forgot-password')" style="flex: 1;">Back</button>
+            <button type="submit" class="btn-primary" style="flex: 2;">Reset Password <i class="fa-solid fa-check"></i></button>
           </div>
         </form>
       </div>

@@ -13,7 +13,8 @@ const state = {
   devDrawerOpen: false,
   dashboardPollSeconds: 15,
   dashboardPollTimer: null,
-  eventStartDate: '2026-07-26'
+  eventStartDate: '2026-07-26',
+  resetPasswordEmail: null
 };
 
 // Formats a YYYY-MM-DD date string as "26th July 2026" for display text
@@ -238,6 +239,77 @@ const app = {
       }
     });
 
+    // Forgot Password Form Handler — requests an OTP be emailed to the given address
+    document.getElementById('forgot-password-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('forgot-password-email').value.trim();
+      const errorEl = document.getElementById('forgot-password-error');
+      errorEl.style.display = 'none';
+
+      try {
+        const res = await fetch('/api/forgot-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email })
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          errorEl.textContent = data.error || 'Something went wrong. Please try again.';
+          errorEl.style.display = 'block';
+          return;
+        }
+
+        state.resetPasswordEmail = email;
+        document.getElementById('reset-password-email-display').textContent = email;
+        this.switchView('reset-password');
+      } catch (err) {
+        console.error(err);
+        errorEl.textContent = 'Connection error sending verification code.';
+        errorEl.style.display = 'block';
+      }
+    });
+
+    // Reset Password Form Handler — verifies the OTP and sets the new password
+    document.getElementById('reset-password-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const otp = document.getElementById('reset-password-otp').value.trim();
+      const newPassword = document.getElementById('reset-password-new').value;
+      const confirmPassword = document.getElementById('reset-password-confirm').value;
+      const errorEl = document.getElementById('reset-password-error');
+      errorEl.style.display = 'none';
+
+      if (newPassword !== confirmPassword) {
+        errorEl.textContent = 'Passwords do not match.';
+        errorEl.style.display = 'block';
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/reset-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: state.resetPasswordEmail, otp, newPassword })
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          errorEl.textContent = data.error || 'Could not reset password.';
+          errorEl.style.display = 'block';
+          return;
+        }
+
+        alert('Password reset successfully. Please log in with your new password.');
+        document.getElementById('login-email').value = state.resetPasswordEmail;
+        state.resetPasswordEmail = null;
+        this.switchView('login');
+      } catch (err) {
+        console.error(err);
+        errorEl.textContent = 'Connection error resetting password.';
+        errorEl.style.display = 'block';
+      }
+    });
+
     // Cart Submission Handler — confirms the category/distance selection
     // (no payment is collected) and moves straight to the mandatory Strava step
     document.getElementById('cart-form').addEventListener('submit', async (e) => {
@@ -342,6 +414,8 @@ const app = {
     const cleanHash = hash.split('?')[0];
     if (cleanHash === '#/gate') this.switchView('gate');
     else if (cleanHash === '#/login') this.switchView('login');
+    else if (cleanHash === '#/forgot-password') this.switchView('forgot-password');
+    else if (cleanHash === '#/reset-password' && state.resetPasswordEmail) this.switchView('reset-password');
     else if (cleanHash === '#/signup') this.switchView('signup');
     else if (cleanHash === '#/cart' && state.currentUser) this.switchView('cart');
     else if (cleanHash === '#/connect-strava' && state.currentUser) this.switchView('connect-strava');

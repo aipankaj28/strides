@@ -138,6 +138,20 @@ async function initDb() {
         // Safe to ignore if column is already present
       }
 
+      try {
+        await query('ALTER TABLE users ADD COLUMN reset_otp_hash VARCHAR(64)');
+        console.log('Database Schema Migration: Added reset_otp_hash column to users table.');
+      } catch (err) {
+        // Safe to ignore if column is already present
+      }
+
+      try {
+        await query('ALTER TABLE users ADD COLUMN reset_otp_expires_at BIGINT');
+        console.log('Database Schema Migration: Added reset_otp_expires_at column to users table.');
+      } catch (err) {
+        // Safe to ignore if column is already present
+      }
+
       console.log('Database tables verified/created successfully.');
     } catch (error) {
       console.error('Failed to initialize database tables:', error);
