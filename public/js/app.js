@@ -4,6 +4,7 @@ const state = {
   activeView: 'gate',
   cart: {
     activity_type: 'run',
+    activity_tier: null,
     activity_distance: '5k'
   },
   activeTab: 'leaderboard',
@@ -12,6 +13,23 @@ const state = {
   dashboardPollSeconds: 15,
   dashboardPollTimer: null
 };
+
+// Tier -> distance option lookup for Run/Cycle (Mix has no tiers)
+const TIER_DISTANCE_OPTIONS = {
+  run: {
+    pro: [{ value: '21k', label: '21K (Half Marathon)' }, { value: '15k', label: '15K' }],
+    intermediate: [{ value: '10k', label: '10K' }, { value: '7k', label: '7K' }],
+    beginner: [{ value: '5k', label: '5K' }, { value: '2k', label: '2K' }]
+  },
+  cycle: {
+    pro: [{ value: '50k', label: '50K' }, { value: '40k', label: '40K' }],
+    intermediate: [{ value: '30k', label: '30K' }],
+    beginner: [{ value: '10k', label: '10K' }, { value: '20k', label: '20K' }]
+  }
+};
+
+// Flexi tier = any distance above this daily minimum (no fixed list)
+const FLEXI_MIN_KM = { run: 2, cycle: 10 };
 
 // Formatting Helpers
 function formatTime(seconds) {
@@ -215,6 +233,7 @@ const app = {
           body: JSON.stringify({
             userId: state.currentUser.id,
             activity_type: state.cart.activity_type,
+            activity_tier: state.cart.activity_tier,
             activity_distance: state.cart.activity_distance
           })
         });
@@ -414,51 +433,83 @@ const app = {
 
   selectCategory(cat) {
     state.cart.activity_type = cat;
+    state.cart.activity_tier = null;
 
-    // Remove selected style classes
+    // Remove selected style classes and disable every select inside every card
     document.querySelectorAll('.category-card').forEach(card => {
       card.classList.remove('selected');
-      // Disable selects inside and clear their value if they are not selected
-      const sel = card.querySelector('select');
-      if (sel) {
+      card.querySelectorAll('select').forEach(sel => {
         sel.disabled = true;
-        // Check if there is an empty/blank option at the top and select it
         const hasBlank = Array.from(sel.options).some(opt => opt.value === "");
-        if (hasBlank) {
-          sel.value = "";
-        }
-      }
+        if (hasBlank) sel.value = "";
+      });
     });
 
-    // Hide all custom distance containers by default
-    const runCustom = document.getElementById('custom-dist-run-container');
-    const cycleCustom = document.getElementById('custom-dist-cycle-container');
-    if (runCustom) runCustom.style.display = 'none';
-    if (cycleCustom) cycleCustom.style.display = 'none';
+    // Hide all Flexi custom-distance containers by default
+    ['run', 'cycle'].forEach(c => {
+      const container = document.getElementById(`custom-dist-${c}-container`);
+      if (container) container.style.display = 'none';
+    });
 
     // Highlight selected card
     const selectedCard = document.getElementById(`card-${cat}`);
     selectedCard.classList.add('selected');
-    const selectedSelect = selectedCard.querySelector('select');
-    if (selectedSelect) {
-      selectedSelect.disabled = false;
-      // If the selected select is currently blank, select its first valid option
-      if (selectedSelect.value === "") {
-        const firstValidOpt = Array.from(selectedSelect.options).find(opt => opt.value !== "");
-        if (firstValidOpt) {
-          selectedSelect.value = firstValidOpt.value;
+
+    if (cat === 'mix') {
+      // Mix has no tier — single flat distance select, unchanged behavior
+      const mixSelect = document.getElementById('select-dist-mix');
+      if (mixSelect) {
+        mixSelect.disabled = false;
+        if (mixSelect.value === "") {
+          const firstValidOpt = Array.from(mixSelect.options).find(opt => opt.value !== "");
+          if (firstValidOpt) mixSelect.value = firstValidOpt.value;
         }
+      }
+    } else {
+      // Run / Cycle: enable the tier select and default to Pro
+      const tierSelect = document.getElementById(`select-tier-${cat}`);
+      if (tierSelect) {
+        tierSelect.disabled = false;
+        tierSelect.value = 'pro';
+        this.onTierChange(cat);
       }
     }
 
-    // Toggle custom container display and set correct state value
-    if (selectedSelect && selectedSelect.value === 'custom') {
-      const container = document.getElementById(`custom-dist-${cat}-container`);
-      if (container) container.style.display = 'block';
+    this.validateCartSelection();
+  },
+
+  // Rebuilds the distance select's options based on the chosen tier (Pro/Intermediate/
+  // Beginner), or switches to the free-entry Flexi input when tier === 'flexi'.
+  onTierChange(cat) {
+    const tierSelect = document.getElementById(`select-tier-${cat}`);
+    const tier = tierSelect.value;
+    state.cart.activity_tier = tier;
+
+    const distSelect = document.getElementById(`select-dist-${cat}`);
+    const customContainer = document.getElementById(`custom-dist-${cat}-container`);
+
+    if (tier === 'flexi') {
+      // Flexi = any distance above the tier minimum — no fixed list, use free entry
+      if (distSelect) {
+        distSelect.style.display = 'none';
+        distSelect.disabled = true;
+      }
+      if (customContainer) customContainer.style.display = 'block';
       const customInput = document.getElementById(`custom-dist-${cat}`);
-      state.cart.activity_distance = customInput ? customInput.value + 'k' : 'custom';
+      if (customInput) customInput.value = FLEXI_MIN_KM[cat];
+      state.cart.activity_distance = FLEXI_MIN_KM[cat] + 'k';
     } else {
-      state.cart.activity_distance = selectedSelect ? selectedSelect.value : '';
+      if (customContainer) customContainer.style.display = 'none';
+      if (distSelect) {
+        distSelect.style.display = '';
+        distSelect.disabled = false;
+        const options = (TIER_DISTANCE_OPTIONS[cat] && TIER_DISTANCE_OPTIONS[cat][tier]) || [];
+        distSelect.innerHTML = options.map(o => `<option value="${o.value}">${o.label}</option>`).join('');
+        if (options.length > 0) {
+          distSelect.value = options[0].value;
+          state.cart.activity_distance = options[0].value;
+        }
+      }
     }
 
     this.validateCartSelection();
@@ -468,65 +519,58 @@ const app = {
     this.validateCartSelection();
   },
 
-  // Resolves the active distance selection (including custom distance inputs),
+  // Resolves the active distance selection (including Flexi free-entry inputs),
   // validates minimums, and enables/disables the submit button. No network
   // call needed here — the selection is only persisted on final submit.
   validateCartSelection() {
     const cat = state.cart.activity_type;
-    const select = document.getElementById(`select-dist-${cat}`);
+    const tier = state.cart.activity_tier;
 
-    // Toggle custom container visibility depending on selection
-    const runCustom = document.getElementById('custom-dist-run-container');
-    const cycleCustom = document.getElementById('custom-dist-cycle-container');
-
-    if (cat === 'run' && select && select.value === 'custom') {
-      if (runCustom) runCustom.style.display = 'block';
-      const customVal = document.getElementById('custom-dist-run').value;
-      state.cart.activity_distance = customVal + 'k';
+    if (cat === 'mix') {
+      const mixSelect = document.getElementById('select-dist-mix');
+      state.cart.activity_distance = mixSelect ? mixSelect.value : '';
+    } else if (tier === 'flexi') {
+      const customInput = document.getElementById(`custom-dist-${cat}`);
+      state.cart.activity_distance = (customInput ? customInput.value : FLEXI_MIN_KM[cat]) + 'k';
     } else {
-      if (runCustom) runCustom.style.display = 'none';
+      const distSelect = document.getElementById(`select-dist-${cat}`);
+      state.cart.activity_distance = distSelect ? distSelect.value : '';
     }
 
-    if (cat === 'cycle' && select && select.value === 'custom') {
-      if (cycleCustom) cycleCustom.style.display = 'block';
-      const customVal = document.getElementById('custom-dist-cycle').value;
-      state.cart.activity_distance = customVal + 'k';
-    } else {
-      if (cycleCustom) cycleCustom.style.display = 'none';
-    }
-
-    if (select && select.value !== 'custom') {
-      state.cart.activity_distance = select.value;
-    }
-
-    // Client-side validation for minimum values
+    // Client-side validation for Flexi minimums
     let hasValidationError = false;
-    if (cat === 'run' && select && select.value === 'custom') {
+
+    if (cat === 'run' && tier === 'flexi') {
       const val = parseFloat(document.getElementById('custom-dist-run').value) || 0;
       const errorSpan = document.getElementById('custom-dist-run-error');
-      if (val < 2.0) {
+      if (val < FLEXI_MIN_KM.run) {
         if (errorSpan) {
           errorSpan.style.display = 'block';
-          errorSpan.textContent = 'Minimum custom distance is 2 km';
+          errorSpan.textContent = `Minimum Flexi distance is ${FLEXI_MIN_KM.run} km`;
         }
         hasValidationError = true;
-      } else {
-        if (errorSpan) errorSpan.style.display = 'none';
+      } else if (errorSpan) {
+        errorSpan.style.display = 'none';
       }
     }
 
-    if (cat === 'cycle' && select && select.value === 'custom') {
+    if (cat === 'cycle' && tier === 'flexi') {
       const val = parseFloat(document.getElementById('custom-dist-cycle').value) || 0;
       const errorSpan = document.getElementById('custom-dist-cycle-error');
-      if (val < 10.0) {
+      if (val < FLEXI_MIN_KM.cycle) {
         if (errorSpan) {
           errorSpan.style.display = 'block';
-          errorSpan.textContent = 'Minimum custom distance is 10 km';
+          errorSpan.textContent = `Minimum Flexi distance is ${FLEXI_MIN_KM.cycle} km`;
         }
         hasValidationError = true;
-      } else {
-        if (errorSpan) errorSpan.style.display = 'none';
+      } else if (errorSpan) {
+        errorSpan.style.display = 'none';
       }
+    }
+
+    // Run/Cycle require a tier to be chosen before submitting
+    if ((cat === 'run' || cat === 'cycle') && !tier) {
+      hasValidationError = true;
     }
 
     // Disable/Enable Cart Submit Button
@@ -590,7 +634,10 @@ const app = {
       document.getElementById('dash-email').textContent = data.user.email;
       document.getElementById('dash-age').textContent = this.calculateAge(data.user.dob) + ' years';
       document.getElementById('dash-gender').textContent = data.user.gender;
-      document.getElementById('dash-event').textContent = `${data.user.activity_type} (${data.user.activity_distance})`;
+      const tierLabel = data.user.activity_tier
+        ? ` — ${data.user.activity_tier.charAt(0).toUpperCase() + data.user.activity_tier.slice(1)}`
+        : '';
+      document.getElementById('dash-event').textContent = `${data.user.activity_type}${tierLabel} (${data.user.activity_distance})`;
 
       // Connection Status Badge
       const statusBadge = document.getElementById('strava-status-badge');

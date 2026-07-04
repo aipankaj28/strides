@@ -154,10 +154,15 @@ app.post('/api/login', async (req, res) => {
 // ---------------------------------------------------------
 
 app.post('/api/checkout', async (req, res) => {
-  const { userId, activity_type, activity_distance } = req.body;
+  const { userId, activity_type, activity_distance, activity_tier } = req.body;
 
   if (!userId || !activity_type || !activity_distance) {
     return res.status(400).json({ error: 'Missing category, distance, or user identifier.' });
+  }
+
+  // Tier (Pro/Intermediate/Beginner/Flexi) applies to Run and Cycle only — Mix has no tiers.
+  if ((activity_type === 'run' || activity_type === 'cycle') && !activity_tier) {
+    return res.status(400).json({ error: 'Missing tier selection for this category.' });
   }
 
   try {
@@ -165,10 +170,11 @@ app.post('/api/checkout', async (req, res) => {
       UPDATE users
       SET activity_type = $1,
           activity_distance = $2,
+          activity_tier = $3,
           is_paid = TRUE
-      WHERE id = $3
+      WHERE id = $4
     `;
-    await db.query(updateQuery, [activity_type, activity_distance, userId]);
+    await db.query(updateQuery, [activity_type, activity_distance, activity_type === 'mix' ? null : activity_tier, userId]);
 
     const userRes = await db.query('SELECT * FROM users WHERE id = $1', [userId]);
     if (userRes.rows.length === 0) {
@@ -412,65 +418,16 @@ app.get('/api/user/dashboard', async (req, res) => {
     // Fetch activities sorted by date desc
     const actRes = await db.query('SELECT * FROM activities WHERE user_id = $1 ORDER BY activity_date DESC', [user.id]);
     
-    // Calculate streak length (consecutive days with consistent activities since 2026-07-26)
-    // If testing before the event start, calculate consistency relative to their first recorded activity
-    let streakDays = 0;
-    const startConsistencyDate = '2026-07-26';
-    
-    // Query list of distinct dates where the user had a valid activity
-    const datesRes = await db.query(
-      'SELECT DISTINCT activity_date FROM activities WHERE user_id = $1 AND is_valid_distance = TRUE ORDER BY activity_date ASC',
+    // Consistency Streak = count of activities already flagged is_consistent by
+    // updateAllUserConsistency() (same forward-from-start algorithm that produces
+    // the per-row "Streak OK/Broken" badges and the Global Leaderboard ranking).
+    // Keeping a single source of truth here avoids the dashboard stat disagreeing
+    // with the table/leaderboard.
+    const streakRes = await db.query(
+      'SELECT COUNT(*) as streak FROM activities WHERE user_id = $1 AND is_valid_distance = TRUE AND is_consistent = TRUE',
       [user.id]
     );
-
-    const validDates = datesRes.rows.map(r => r.activity_date);
-    
-    if (validDates.length > 0) {
-      // If the earliest activity is before July 26th, start the streak validation from that date for testing
-      const effectiveStartDate = (validDates[0] < startConsistencyDate) ? validDates[0] : startConsistencyDate;
-      const latestDateStr = validDates[validDates.length - 1];
-      
-      // Calculate streak from effectiveStartDate up to the latest date
-      if (latestDateStr >= effectiveStartDate) {
-        let current = new Date(effectiveStartDate);
-        const latest = new Date(latestDateStr);
-        const completedSet = new Set(validDates);
-        let consistent = true;
-        
-        while (current <= latest) {
-          const yyyy = current.getFullYear();
-          const mm = String(current.getMonth() + 1).padStart(2, '0');
-          const dd = String(current.getDate()).padStart(2, '0');
-          const dateStr = `${yyyy}-${mm}-${dd}`;
-          
-          if (completedSet.has(dateStr)) {
-            streakDays++;
-          } else {
-            consistent = false;
-            break; // Streak broken!
-          }
-          current.setDate(current.getDate() + 1);
-        }
-        
-        if (!consistent) {
-          // If broken, streak length is the number of consistent days from latest backwards
-          streakDays = 0;
-          let temp = new Date(latest);
-          while (temp >= new Date(effectiveStartDate)) {
-            const yyyy = temp.getFullYear();
-            const mm = String(temp.getMonth() + 1).padStart(2, '0');
-            const dd = String(temp.getDate()).padStart(2, '0');
-            const dateStr = `${yyyy}-${mm}-${dd}`;
-            if (completedSet.has(dateStr)) {
-              streakDays++;
-            } else {
-              break;
-            }
-            temp.setDate(temp.getDate() - 1);
-          }
-        }
-      }
-    }
+    const streakDays = parseInt(streakRes.rows[0].streak);
 
     res.json({
       user,

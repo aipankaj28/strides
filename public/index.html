@@ -142,41 +142,42 @@
             <!-- Run Card -->
             <div class="category-card" id="card-run" onclick="app.selectCategory('run')">
               <div class="category-icon"><i class="fa-solid fa-person-running"></i></div>
-              <h3>Running</h3>
-              <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">Choose your distance below</p>
-              <select id="select-dist-run" class="distance-select" onclick="event.stopPropagation();" onchange="event.stopPropagation(); app.validateCartSelection();">
+              <h3>Running / Walking</h3>
+              <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">Choose your tier below</p>
+              <select id="select-tier-run" class="distance-select" onclick="event.stopPropagation();" onchange="event.stopPropagation(); app.onTierChange('run');">
                 <option value="" disabled selected style="display: none;"></option>
-                <option value="2k">2K</option>
-                <option value="5k">5K</option>
-                <option value="7k">7K</option>
-                <option value="10k">10K</option>
-                <option value="15k">15K</option>
-                <option value="21k">21K (Half Marathon)</option>
-                <option value="custom">Custom</option>
+                <option value="pro">Pro</option>
+                <option value="intermediate">Intermediate</option>
+                <option value="beginner">Beginner</option>
+                <option value="flexi">Flexi</option>
+              </select>
+              <select id="select-dist-run" class="distance-select" style="margin-top: 0.5rem;" onclick="event.stopPropagation();" onchange="event.stopPropagation(); app.validateCartSelection();" disabled>
+                <option value="" disabled selected style="display: none;"></option>
               </select>
               <div id="custom-dist-run-container" style="display: none; margin-top: 1rem;" onclick="event.stopPropagation();">
-                <label style="font-size: 0.8rem; display: block; margin-bottom: 0.25rem; color: var(--text-secondary); text-align: left;">Distance (KM)</label>
+                <label style="font-size: 0.8rem; display: block; margin-bottom: 0.25rem; color: var(--text-secondary); text-align: left;">Distance (KM) — any value above 2 km</label>
                 <input type="number" id="custom-dist-run" value="2" step="1" style="width: 100%; text-align: center;" onchange="app.onCustomDistanceChange('run')" oninput="app.onCustomDistanceChange('run')">
                 <span id="custom-dist-run-error" style="color: var(--danger); font-size: 0.75rem; display: none; margin-top: 0.25rem; text-align: left;"></span>
               </div>
             </div>
-            
+
             <!-- Cycle Card -->
             <div class="category-card" id="card-cycle" onclick="app.selectCategory('cycle')">
               <div class="category-icon"><i class="fa-solid fa-bicycle"></i></div>
               <h3>Cycling</h3>
-              <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">Choose your distance below</p>
-              <select id="select-dist-cycle" class="distance-select" onclick="event.stopPropagation();" onchange="event.stopPropagation(); app.validateCartSelection();" disabled>
+              <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">Choose your tier below</p>
+              <select id="select-tier-cycle" class="distance-select" onclick="event.stopPropagation();" onchange="event.stopPropagation(); app.onTierChange('cycle');" disabled>
                 <option value="" disabled selected style="display: none;"></option>
-                <option value="10k">10K</option>
-                <option value="20k">20K</option>
-                <option value="30k">30K</option>
-                <option value="40k">40K</option>
-                <option value="50k">50K</option>
-                <option value="custom">Custom</option>
+                <option value="pro">Pro</option>
+                <option value="intermediate">Intermediate</option>
+                <option value="beginner">Beginner</option>
+                <option value="flexi">Flexi</option>
+              </select>
+              <select id="select-dist-cycle" class="distance-select" style="margin-top: 0.5rem;" onclick="event.stopPropagation();" onchange="event.stopPropagation(); app.validateCartSelection();" disabled>
+                <option value="" disabled selected style="display: none;"></option>
               </select>
               <div id="custom-dist-cycle-container" style="display: none; margin-top: 1rem;" onclick="event.stopPropagation();">
-                <label style="font-size: 0.8rem; display: block; margin-bottom: 0.25rem; color: var(--text-secondary); text-align: left;">Distance (KM)</label>
+                <label style="font-size: 0.8rem; display: block; margin-bottom: 0.25rem; color: var(--text-secondary); text-align: left;">Distance (KM) — any value above 10 km</label>
                 <input type="number" id="custom-dist-cycle" value="10" step="1" style="width: 100%; text-align: center;" onchange="app.onCustomDistanceChange('cycle')" oninput="app.onCustomDistanceChange('cycle')">
                 <span id="custom-dist-cycle-error" style="color: var(--danger); font-size: 0.75rem; display: none; margin-top: 0.25rem; text-align: left;"></span>
               </div>
