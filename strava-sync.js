@@ -1,4 +1,41 @@
 const db = require('./db');
+const { throttledFetch, getUsage } = require('./strava-rate-limiter');
+
+// ---------------------------------------------------------------------------
+// Initial-sync queue
+// New athletes are enqueued here at OAuth time instead of being synced
+// immediately. The queue drains at one user per QUEUE_INTERVAL_MS, keeping
+// API usage well under the 100-reads/15-min Strava limit.
+// ---------------------------------------------------------------------------
+const QUEUE_INTERVAL_MS = 12000; // 1 user per 12 s  → ~75 users / 15-min window
+const syncQueue = [];
+let queueTimer = null;
+
+function enqueueSyncUser(userId) {
+  if (!syncQueue.includes(userId)) {
+    syncQueue.push(userId);
+    console.log(`[SyncQueue] Enqueued user ${userId}. Queue length: ${syncQueue.length}`);
+  }
+  if (!queueTimer) startQueueDrain();
+}
+
+function startQueueDrain() {
+  queueTimer = setInterval(async () => {
+    if (syncQueue.length === 0) {
+      clearInterval(queueTimer);
+      queueTimer = null;
+      console.log('[SyncQueue] Queue empty — drain stopped.');
+      return;
+    }
+    const userId = syncQueue.shift();
+    console.log(`[SyncQueue] Processing user ${userId}. Remaining: ${syncQueue.length}`);
+    try {
+      await syncUserActivities(userId);
+    } catch (err) {
+      console.error(`[SyncQueue] Error syncing user ${userId}:`, err);
+    }
+  }, QUEUE_INTERVAL_MS);
+}
 
 // Map activity distances to numeric targets in km
 const DISTANCE_MAP = {
@@ -401,7 +438,7 @@ async function fetchAndSaveActivity(userId, stravaActivityId) {
   if (!accessToken || accessToken.startsWith('mock_')) return;
 
   try {
-    const response = await fetch(`https://www.strava.com/api/v3/activities/${stravaActivityId}`, {
+    const response = await throttledFetch(`https://www.strava.com/api/v3/activities/${stravaActivityId}`, {
       headers: { 'Authorization': `Bearer ${accessToken}` }
     });
 
@@ -481,11 +518,11 @@ async function syncUserActivities(userId) {
 
     console.log(`[Strava API] Syncing Activities. URL: ${requestUrl}. Headers: Authorization: Bearer ***MASKED***`);
 
-    const response = await fetch(requestUrl, {
+    const response = await throttledFetch(requestUrl, {
       headers: { 'Authorization': `Bearer ${accessToken}` }
     });
 
-    console.log(`[Strava API] Syncing Activities Response Status: ${response.status}`);
+    console.log(`[Strava API] Syncing Activities Response Status: ${response.status}  ${JSON.stringify(getUsage())}`);
 
     if (!response.ok) {
       const errText = await response.text();
@@ -514,21 +551,31 @@ async function syncUserActivities(userId) {
 
   // Recalculate daily consistency for the user
   await updateAllUserConsistency(userId);
+
+  // Stamp last_synced_at so the fallback cron can skip recently-synced users
+  await db.query('UPDATE users SET last_synced_at = NOW() WHERE id = $1', [userId]);
 }
 
 /**
  * Triggers background sync for all users who have connected Strava
  */
 async function syncAllUsers() {
-  console.log('Running background Strava synchronization...');
+  console.log('[Cron] Running fallback Strava sync (users not synced in last 6 hours)...');
   try {
-    const result = await db.query('SELECT id FROM users WHERE strava_access_token IS NOT NULL');
+    // Only target users whose last_synced_at is NULL or older than 6 hours.
+    // Healthy webhook delivery means most users will be excluded here.
+    const result = await db.query(`
+      SELECT id FROM users
+      WHERE strava_access_token IS NOT NULL
+        AND (last_synced_at IS NULL OR last_synced_at < NOW() - INTERVAL '6 hours')
+    `);
+    console.log(`[Cron] ${result.rows.length} user(s) need catch-up sync.`);
     for (const row of result.rows) {
       await syncUserActivities(row.id);
     }
-    console.log('Background sync completed.');
+    console.log('[Cron] Fallback sync completed.');
   } catch (error) {
-    console.error('Error during background sync execution:', error);
+    console.error('[Cron] Error during fallback sync:', error);
   }
 }
 
@@ -603,6 +650,7 @@ module.exports = {
   refreshStravaToken,
   syncUserActivities,
   syncAllUsers,
+  enqueueSyncUser,
   updateAllUserConsistency,
   getTargetDistance,
   fetchAndSaveActivity,

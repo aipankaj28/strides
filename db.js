@@ -124,6 +124,13 @@ async function initDb() {
         // Safe to ignore if column is already present
       }
 
+      try {
+        await query('ALTER TABLE users ADD COLUMN last_synced_at TIMESTAMP');
+        console.log('Database Schema Migration: Added last_synced_at column to users table.');
+      } catch (err) {
+        // Safe to ignore if column is already present
+      }
+
       console.log('Database tables verified/created successfully.');
     } catch (error) {
       console.error('Failed to initialize database tables:', error);

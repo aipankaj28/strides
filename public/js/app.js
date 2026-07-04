@@ -6,7 +6,7 @@ const state = {
     activity_type: 'run',
     activity_distance: '5k'
   },
-  activeTab: 'my-activities',
+  activeTab: 'leaderboard',
   activeDevTab: 'dev-users',
   devDrawerOpen: false,
   dashboardPollSeconds: 15,
@@ -641,11 +641,6 @@ const app = {
             <td>${parseFloat(act.distance).toFixed(2)} km</td>
             <td>${formatTime(act.elapsed_time)}</td>
             <td>
-              ${act.has_gps
-                ? `<span class="check-badge valid" title="${act.start_latlng}"><i class="fa-solid fa-location-dot"></i> GPS OK</span>`
-                : '<span class="check-badge invalid"><i class="fa-solid fa-triangle-exwarning"></i> Missing</span>'}
-            </td>
-            <td>
               ${act.is_valid_distance
                 ? '<span class="check-badge valid"><i class="fa-solid fa-circle-check"></i> Passed</span>'
                 : `<span class="check-badge invalid" title="Expected ${data.targetDistance} km"><i class="fa-solid fa-circle-xmark"></i> Short</span>`}
@@ -672,7 +667,6 @@ const app = {
               <span>Distance</span><span>${parseFloat(act.distance).toFixed(2)} km</span>
               <span>Elapsed time</span><span>${formatTime(act.elapsed_time)}</span>
               <span>Speed</span><span><strong>${formatSpeed(act.speed)}</strong></span>
-              <span>GPS tag</span><span>${act.has_gps ? 'Verified' : 'Missing'}</span>
             </div>
             <div class="activity-card-badges">
               ${act.is_valid_distance
@@ -681,17 +675,15 @@ const app = {
               ${act.is_consistent
                 ? '<span class="check-badge valid"><i class="fa-solid fa-calendar-check"></i> Streak OK</span>'
                 : '<span class="check-badge invalid" title="Daily streak broken starting 2026-07-26"><i class="fa-solid fa-calendar-times"></i> Broken</span>'}
-              ${act.has_gps
-                ? `<span class="check-badge valid" title="${act.start_latlng}"><i class="fa-solid fa-location-dot"></i> GPS OK</span>`
-                : '<span class="check-badge invalid"><i class="fa-solid fa-triangle-exwarning"></i> No GPS</span>'}
             </div>
           `;
           cardList.appendChild(card);
         });
       }
 
-      // Switch active tab view
+      // Switch active tab view and load leaderboard if it's the default
       this.switchTab(state.activeTab);
+      if (state.activeTab === 'leaderboard') this.loadLeaderboard();
 
     } catch (err) {
       console.error(err);
@@ -757,7 +749,7 @@ const app = {
         const emptyMsg = 'No athletes qualify on current filters. Consistent activities since 2026-07-26 are required.';
         tbody.innerHTML = `
           <tr>
-            <td colspan="9" style="text-align: center; color: var(--text-secondary); padding: 2rem;">
+            <td colspan="5" style="text-align: center; color: var(--text-secondary); padding: 2rem;">
               ${emptyMsg}
             </td>
           </tr>
@@ -782,12 +774,8 @@ const app = {
           <td class="rank-column ${rankClass}">#${item.rank}</td>
           <td><strong>${item.name}</strong></td>
           <td style="text-transform: capitalize;">${item.category} (${item.targetDistance})</td>
-          <td style="text-transform: capitalize;">${item.ageGroup.replace('plus', '+').replace('upto18', '< 18')}</td>
-          <td style="text-transform: capitalize;">${item.gender}</td>
-          <td>${item.distance.toFixed(2)} km</td>
-          <td>${formatTime(item.elapsedTime)}</td>
-          <td style="color: var(--primary); font-weight: 700;">${formatSpeed(item.speed)}</td>
-          <td>${item.activityDate}</td>
+          <td style="color: var(--primary); font-weight: 700;">${item.streak} day${item.streak === 1 ? '' : 's'}</td>
+          <td>${item.totalDistance.toFixed(2)} km</td>
         `;
         tbody.appendChild(tr);
 
@@ -797,11 +785,11 @@ const app = {
           <div class="leaderboard-card-rank ${rankClass}">#${item.rank}</div>
           <div class="leaderboard-card-body">
             <div class="leaderboard-card-name">${item.name}</div>
-            <div class="leaderboard-card-meta">${item.category} &middot; ${item.ageGroup.replace('plus', '+').replace('upto18', '< 18')} &middot; ${item.gender}</div>
+            <div class="leaderboard-card-meta">${item.category} (${item.targetDistance})</div>
           </div>
           <div class="leaderboard-card-stats">
-            <div class="leaderboard-card-distance">${item.distance.toFixed(2)} km</div>
-            <div class="leaderboard-card-speed">${formatSpeed(item.speed)}</div>
+            <div class="leaderboard-card-distance">${item.totalDistance.toFixed(2)} km</div>
+            <div class="leaderboard-card-speed">${item.streak} day${item.streak === 1 ? '' : 's'} streak</div>
           </div>
         `;
         cardList.appendChild(card);

@@ -251,8 +251,8 @@ app.get('/api/auth/strava/callback', async (req, res) => {
       userId
     ]);
 
-    // Trigger initial sync in background
-    stravaSync.syncUserActivities(userId);
+    // Queue initial sync — processed at a rate-limited pace alongside other new signups
+    stravaSync.enqueueSyncUser(userId);
 
     // Fetch user email to redirect them back to dashboard
     const userRes = await db.query('SELECT email FROM users WHERE id = $1', [userId]);
@@ -489,10 +489,12 @@ app.get('/api/leaderboard', async (req, res) => {
   const { category, gender, ageGroup } = req.query;
 
   try {
-    // Standard query: Select fastest activity per user which is valid & consistent
-    // Join with user profile details
+    // Athlete qualifies for the leaderboard once they have at least one activity
+    // that is both distance-valid and consistent. Consistency streak = count of
+    // such activities (each one implies every prior required day was also met).
+    // Total distance = sum of every activity logged by the athlete, valid or not.
     let sqlQuery = `
-      SELECT 
+      SELECT
         u.id as user_id,
         u.name,
         u.surname,
@@ -500,23 +502,18 @@ app.get('/api/leaderboard', async (req, res) => {
         u.dob,
         u.activity_type,
         u.activity_distance,
-        a.id as activity_id,
-        a.type as activity_type,
-        a.distance,
-        a.elapsed_time,
-        a.speed,
-        a.activity_date
+        (SELECT COUNT(*) FROM activities s
+           WHERE s.user_id = u.id AND s.is_valid_distance = TRUE AND s.is_consistent = TRUE) as streak,
+        (SELECT COALESCE(SUM(distance), 0) FROM activities t
+           WHERE t.user_id = u.id) as total_distance
       FROM users u
-      INNER JOIN (
-        SELECT user_id, MAX(speed) as max_speed
-        FROM activities
-        WHERE is_valid_distance = TRUE AND is_consistent = TRUE
-        GROUP BY user_id
-      ) max_act ON u.id = max_act.user_id
-      INNER JOIN activities a ON a.user_id = u.id AND a.speed = max_act.max_speed AND a.is_valid_distance = TRUE AND a.is_consistent = TRUE
       WHERE u.is_paid = TRUE
+        AND EXISTS (
+          SELECT 1 FROM activities e
+          WHERE e.user_id = u.id AND e.is_valid_distance = TRUE AND e.is_consistent = TRUE
+        )
     `;
-    
+
     const params = [];
     let paramIndex = 1;
 
@@ -535,7 +532,7 @@ app.get('/api/leaderboard', async (req, res) => {
     }
 
     const result = await db.query(sqlQuery, params);
-    
+
     // Map database rows and calculate ages to apply age group filter client-side / node-side
     let leaderboard = result.rows.map(row => {
       const age = calculateAge(row.dob);
@@ -547,10 +544,8 @@ app.get('/api/leaderboard', async (req, res) => {
         ageGroup: getAgeGroup(age),
         category: row.activity_type,
         targetDistance: row.activity_distance,
-        distance: parseFloat(row.distance),
-        elapsedTime: parseFloat(row.elapsed_time),
-        speed: parseFloat(row.speed), // speed in km/sec
-        activityDate: row.activity_date
+        streak: parseInt(row.streak),
+        totalDistance: parseFloat(row.total_distance)
       };
     });
 
@@ -559,8 +554,8 @@ app.get('/api/leaderboard', async (req, res) => {
       leaderboard = leaderboard.filter(item => item.ageGroup === ageGroup);
     }
 
-    // Sort leaderboard by speed descending
-    leaderboard.sort((a, b) => b.speed - a.speed);
+    // Sort leaderboard by consistency streak descending, then total distance descending
+    leaderboard.sort((a, b) => b.streak - a.streak || b.totalDistance - a.totalDistance);
 
     // Add Rank
     leaderboard = leaderboard.map((item, idx) => ({
@@ -685,8 +680,10 @@ app.listen(PORT, async () => {
 
   console.log(`Strides Web App is running on port ${PORT}`);
 
-  // Schedule periodic background sync if not in local dev mode (every 10 minutes)
+  // Fallback sync cron — runs every 6 hours to catch any activities missed by webhooks.
+  // Skips users synced within the last 6 hours so normal webhook-driven updates
+  // don't burn any API quota here.
   setInterval(() => {
     stravaSync.syncAllUsers();
-  }, 10 * 60 * 1000);
+  }, 6 * 60 * 60 * 1000);
 });

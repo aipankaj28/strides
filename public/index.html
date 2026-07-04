@@ -299,22 +299,19 @@
 
           <!-- Tab Navigation -->
           <div class="tab-nav">
-            <button class="tab-btn active" onclick="app.switchTab('my-activities')">
-              <i class="fa-solid fa-list-check"></i> Sync Logs & Verification
+            <button class="tab-btn" onclick="app.switchTab('my-activities')">
+              <i class="fa-solid fa-list-check"></i> My Activities
             </button>
-            <button class="tab-btn" onclick="app.switchTab('leaderboard'); app.loadLeaderboard();">
+            <button class="tab-btn active" onclick="app.switchTab('leaderboard'); app.loadLeaderboard();">
               <i class="fa-solid fa-trophy"></i> Global Leaderboard
             </button>
           </div>
 
           <!-- Tab 1: Sync logs -->
-          <div id="tab-my-activities" class="tab-content active">
+          <div id="tab-my-activities" class="tab-content">
             <div class="glass-card" style="padding: 1.5rem;">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+              <div style="margin-bottom: 1.5rem;">
                 <h3 style="font-size: 1.2rem;">Activity Logs (since 26th July 2026)</h3>
-                <button class="btn-secondary" onclick="app.syncActivities()" style="padding: 0.5rem 1rem; font-size: 0.85rem; display: flex; align-items: center; gap: 0.5rem;">
-                  <i class="fa-solid fa-rotate"></i> Sync Activities
-                </button>
               </div>
 
               <div class="table-wrapper">
@@ -325,7 +322,6 @@
                       <th>Activity</th>
                       <th>Distance</th>
                       <th>Elapsed Time</th>
-                      <th>GPS Tag</th>
                       <th>Check 1: Target</th>
                       <th>Check 2: Consistency</th>
                       <th>Speed</th>
@@ -346,7 +342,7 @@
           </div>
 
           <!-- Tab 2: Leaderboard -->
-          <div id="tab-leaderboard" class="tab-content">
+          <div id="tab-leaderboard" class="tab-content active">
             <div class="glass-card" style="padding: 1.5rem;">
               <h3 style="font-size: 1.2rem; margin-bottom: 1rem;">Global Rankings</h3>
               
@@ -389,17 +385,13 @@
                       <th style="text-align: center; width: 60px;">Rank</th>
                       <th>Athlete</th>
                       <th>Category</th>
-                      <th>Age Group</th>
-                      <th>Gender</th>
-                      <th>Distance Done</th>
-                      <th>Time</th>
-                      <th>Avg Speed</th>
-                      <th>Date</th>
+                      <th>Consistency Streak</th>
+                      <th>Total Distance</th>
                     </tr>
                   </thead>
                   <tbody id="leaderboard-table-body">
                     <tr>
-                      <td colspan="9" style="text-align: center; color: var(--text-secondary); padding: 2rem;">
+                      <td colspan="5" style="text-align: center; color: var(--text-secondary); padding: 2rem;">
                         Loading rankings...
                       </td>
                     </tr>
