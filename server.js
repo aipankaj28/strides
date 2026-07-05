@@ -178,9 +178,9 @@ app.post('/api/login', async (req, res) => {
 
 const OTP_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
 
-// Step 1: request an OTP. Always responds with a generic success message
-// regardless of whether the email exists, to avoid leaking which emails
-// are registered.
+// Step 1: request an OTP. Returns an explicit 404 if the email isn't
+// registered (chosen over a generic response for clearer UX, at the cost
+// of letting this endpoint be used to enumerate registered emails).
 app.post('/api/forgot-password', async (req, res) => {
   const { email } = req.body;
 
@@ -188,12 +188,10 @@ app.post('/api/forgot-password', async (req, res) => {
     return res.status(400).json({ error: 'Email ID is required.' });
   }
 
-  const genericResponse = { message: 'If that email is registered, a verification code has been sent.' };
-
   try {
     const userRes = await db.query('SELECT * FROM users WHERE email = $1', [email.toLowerCase().trim()]);
     if (userRes.rows.length === 0) {
-      return res.json(genericResponse);
+      return res.status(404).json({ error: 'Email ID not found. Please check and try again, or sign up.' });
     }
     const user = userRes.rows[0];
 
@@ -216,7 +214,7 @@ app.post('/api/forgot-password', async (req, res) => {
       </div>`
     );
 
-    res.json(genericResponse);
+    res.json({ message: 'A verification code has been sent to your email.' });
   } catch (error) {
     console.error('Error in forgot-password:', error);
     res.status(500).json({ error: 'Failed to process password reset request.' });
