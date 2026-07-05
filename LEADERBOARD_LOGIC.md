@@ -4,7 +4,7 @@ This document explains the ranking logic behind the Global Leaderboard (`GET /ap
 
 ## Who appears on the leaderboard
 
-Every athlete who has completed registration (`is_paid = TRUE`) appears — **there is no eligibility gate**. An athlete who has never logged a single activity still shows up, ranked at (or near) the bottom. The leaderboard is scoped to one event sub-tab at a time (Running/Walking, Cycling, or Mixed) via the `category` filter.
+Every athlete who has completed registration appears — **there is no eligibility gate**. An athlete who has never logged a single activity still shows up, ranked at (or near) the bottom. The leaderboard is scoped to one event sub-tab at a time (Running/Walking, Cycling, or Mixed) via the `category` filter.
 
 ## Step 1 — Establish each athlete's window
 
@@ -45,7 +45,7 @@ If multiple activities are logged on the same day, the day is judged generously:
 
 Additionally:
 
-- **`totalDistance`** — the sum of every activity's distance ever logged by the athlete, **regardless of whether it was valid, the right type, or on a break day**. A swim, a short run, all of it counts toward this number. This is deliberately unfiltered — it rewards total effort/volume independent of the consistency scoring above.
+- **`totalDistance`** — the sum of every activity's distance ever logged by the athlete, **regardless of whether it was valid, the right type, or on a break day**. Returned and displayed for informational purposes only — **it does not factor into ranking**.
 - **`avgPaceSecPerKm`** — total elapsed time across every logged activity divided by `totalDistance` (seconds per km — lower is faster). Same unfiltered scope as `totalDistance`: every logged activity contributes, valid or not. Athletes with zero logged distance get `Infinity`, so they never win a pace comparison.
 
 ## Step 4 — The three tiers, in ranking order
@@ -62,31 +62,29 @@ This maps directly to the sort:
 leaderboard.sort((a, b) =>
   a.breaks - b.breaks ||                       // fewer breaks always wins
   (b.isPerfect - a.isPerfect) ||                // among equal breaks, Perfect beats Consistent(Short)
-  b.totalDistance - a.totalDistance ||          // next tie-break: more distance wins
   a.avgPaceSecPerKm - b.avgPaceSecPerKm         // final tie-break: faster average pace wins
 );
 ```
 
-An athlete with 1 break can never outrank an athlete with 0 breaks, no matter how much further the 1-break athlete ran. Consistency always dominates volume; volume only decides ties; pace only decides ties that survive both of the above.
+**`totalDistance` is not part of this sort at all** — it's computed and returned purely for display. An athlete with 1 break can never outrank an athlete with 0 breaks, no matter how much further the 1-break athlete ran. Consistency always dominates; pace only decides ties between athletes who match exactly on breaks and Perfect status, regardless of how much distance either of them logged.
 
-**Pace example:** two athletes both at 0 breaks, Perfect, and 21 km total distance — one averaging 6:00/km, the other 7:00/km — the 6:00/km athlete ranks higher, since a faster pace at equal distance means more effort per kilometer covered.
+**Pace example:** two athletes both at 0 breaks and Perfect — one who ran 21 km at 5:00/km, the other who ran 50 km at 7:00/km — the 21 km athlete ranks higher, because pace decides the tie and total distance is irrelevant to rank.
 
 ## Step 5 — Assigning rank numbers (joint leaders)
 
-Ranks use **standard competition ranking** ("1-2-2-4"), not simple row position. Two or more athletes who are perfectly tied — same `breaks`, same `isPerfect`, same `totalDistance`, **and** same `avgPaceSecPerKm` — share the exact same rank number. The next distinct athlete's rank then resumes at their true position in the list, skipping ranks, rather than continuing sequentially.
+Ranks use **standard competition ranking** ("1-2-2-4"), not simple row position. Two or more athletes who are perfectly tied — same `breaks`, same `isPerfect`, **and** same `avgPaceSecPerKm` — share the exact same rank number. The next distinct athlete's rank then resumes at their true position in the list, skipping ranks, rather than continuing sequentially.
 
 Example: if three athletes tie for 1st, they all show `#1`, and the next athlete shows `#4` (not `#2`).
 
 ```js
-let lastRank = 0, lastBreaks = null, lastPerfect = null, lastDistance = null, lastPace = null;
+let lastRank = 0, lastBreaks = null, lastPerfect = null, lastPace = null;
 leaderboard = leaderboard.map((item, idx) => {
   const tied = lastBreaks === item.breaks && lastPerfect === item.isPerfect
-    && lastDistance === item.totalDistance && lastPace === item.avgPaceSecPerKm;
+    && lastPace === item.avgPaceSecPerKm;
   const rank = tied ? lastRank : idx + 1;
   lastRank = rank;
   lastBreaks = item.breaks;
   lastPerfect = item.isPerfect;
-  lastDistance = item.totalDistance;
   lastPace = item.avgPaceSecPerKm;
   return { rank, ...item };
 });
@@ -94,16 +92,16 @@ leaderboard = leaderboard.map((item, idx) => {
 
 ## Worked example
 
-| Athlete | Breaks | Perfect? | Total Distance | Avg Pace | Rank |
+| Athlete | Breaks | Perfect? | Avg Pace | Total Distance (display only) | Rank |
 |---|---|---|---|---|---|
-| A | 0 | ✅ | 150.5 km | 5:30 /km | #1 |
-| B | 0 | ✅ | 150.5 km | 5:30 /km | #1 *(tied with A — joint leaders)* |
-| C | 0 | ❌ (one short day) | 300 km | 6:10 /km | #3 |
-| D | 1 | ❌ | 500 km | 5:00 /km | #4 |
-| E | 2 | ❌ | 50 km | 4:45 /km | #5 |
-| F | 0 | ✅ | 150.5 km | 6:00 /km | #6 |
+| A | 0 | ✅ | 5:30 /km | 150.5 km | #1 |
+| B | 0 | ✅ | 5:30 /km | 20.0 km | #1 *(tied with A — joint leaders, despite far less distance)* |
+| C | 0 | ❌ (one short day) | 6:10 /km | 300 km | #3 |
+| D | 1 | ❌ | 5:00 /km | 500 km | #4 |
+| E | 2 | ❌ | 4:45 /km | 50 km | #5 |
+| F | 0 | ✅ | 6:00 /km | 150.5 km | #6 |
 
-Note that **C outranks D and E** despite fewer breaks not applying — C has 0 breaks (Tier 2) vs. D and E's 1+ breaks (Tier 3), regardless of D having far more total distance than C. Consistency (breaks, then Perfect status) always outweighs raw volume. Also note **F ranks below A/B** despite matching them on breaks, Perfect status, and total distance — F's slower 6:00/km pace is the deciding factor, since pace is only reached once everything else ties exactly.
+Note that **C outranks D and E** despite fewer breaks not applying — C has 0 breaks (Tier 2) vs. D and E's 1+ breaks (Tier 3), regardless of D having far more total distance than C. Consistency (breaks, then Perfect status) always outweighs pace, and distance never enters the comparison at all. Also note **B ties exactly with A** despite a huge distance gap (150.5 km vs 20.0 km) — since distance isn't ranked, only breaks/Perfect/pace matter, and those three all match. F ranks below A/B purely because of its slower 6:00/km pace.
 
 ## What the UI shows
 
@@ -121,4 +119,5 @@ The "Avg Pace" column shows `avgPaceSecPerKm` formatted as `M:SS /km` (`formatPa
 
 - **"Today" is the real server clock**, not a fixed event date. If test/seed data is dated in the future relative to the actual server date, that athlete's window hasn't "started" yet and they'll show `breaks = 0, isPerfect = false` regardless of the pattern in their seeded data — this is expected, not a bug, but worth knowing when testing with fabricated dates.
 - **`EVENT_START_DATE` is configurable** via environment variable (defaults to `2026-07-26`) — changing it shifts every athlete's window start uniformly, except for athletes whose real earliest activity predates it.
-- **Total Distance has no ceiling and no validity filter** — an athlete could pad this number with activities that don't count toward their streak at all (wrong type, short distance, etc.). This is intentional per current design, but is the one place where "junk" activity still influences the leaderboard.
+- **Total Distance no longer affects rank at all** — it's shown purely for context. An athlete could log enormous distance and still rank below someone with a shorter but more consistent, faster-paced record.
+- **Average Pace still has no validity filter** — it's computed across every logged activity (valid or not), so a junk activity (wrong type, short distance) still pulls an athlete's average pace up or down even though it wouldn't count toward `breaks`/`isPerfect`.
