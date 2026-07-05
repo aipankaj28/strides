@@ -652,15 +652,31 @@ select option {
   flex-shrink: 0;
 }
 
+.leaderboard-card-stat-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 0.4rem;
+  margin-bottom: 0.15rem;
+}
+
+.leaderboard-card-stat-label {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+}
+
 .leaderboard-card-distance {
   font-weight: 700;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   color: var(--primary);
 }
 
 .leaderboard-card-speed {
   font-size: 0.75rem;
   color: var(--text-secondary);
+  margin-top: 0.2rem;
 }
 
 @media (max-width: 600px) {

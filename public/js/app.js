@@ -995,7 +995,14 @@ const app = {
             <div class="leaderboard-card-meta">${item.category} (${item.targetDistance})</div>
           </div>
           <div class="leaderboard-card-stats">
-            <div class="leaderboard-card-distance">${item.totalDistance.toFixed(2)} km &middot; ${paceLabel}</div>
+            <div class="leaderboard-card-stat-row">
+              <span class="leaderboard-card-stat-label">Total Distance</span>
+              <span class="leaderboard-card-distance">${item.totalDistance.toFixed(2)} km</span>
+            </div>
+            <div class="leaderboard-card-stat-row">
+              <span class="leaderboard-card-stat-label">Pace</span>
+              <span class="leaderboard-card-distance">${paceLabel}</span>
+            </div>
             <div class="leaderboard-card-speed" style="color: ${status.color};">${status.label}</div>
           </div>
         `;
