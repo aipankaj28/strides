@@ -58,8 +58,8 @@ async function initDb() {
       id VARCHAR(100) PRIMARY KEY,
       name VARCHAR(100) NOT NULL,
       surname VARCHAR(100) NOT NULL,
-      dob VARCHAR(20) NOT NULL,
-      gender VARCHAR(20) NOT NULL,
+      dob VARCHAR(20),
+      gender VARCHAR(20),
       email VARCHAR(255) UNIQUE NOT NULL,
       mobile VARCHAR(20) NOT NULL,
       activity_type VARCHAR(50) NOT NULL,
@@ -162,6 +162,19 @@ async function initDb() {
           console.log('Database Schema Migration: Dropped NOT NULL constraint on users.activity_distance.');
         } catch (err) {
           console.error('Failed to drop NOT NULL on users.activity_distance:', err.message);
+        }
+      }
+
+      // Signup no longer collects date of birth or gender -- both columns
+      // must be nullable so new signups can omit them. Existing rows with
+      // values are untouched.
+      if (dbType === 'postgres') {
+        try {
+          await query('ALTER TABLE users ALTER COLUMN dob DROP NOT NULL');
+          await query('ALTER TABLE users ALTER COLUMN gender DROP NOT NULL');
+          console.log('Database Schema Migration: Dropped NOT NULL constraint on users.dob and users.gender.');
+        } catch (err) {
+          console.error('Failed to drop NOT NULL on users.dob/gender:', err.message);
         }
       }
 

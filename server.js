@@ -92,9 +92,9 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // Signup API
 app.post('/api/signup', async (req, res) => {
-  const { name, surname, dob, gender, email, mobile, password } = req.body;
+  const { name, surname, email, mobile, password } = req.body;
 
-  if (!name || !surname || !dob || !gender || !email || !mobile || !password) {
+  if (!name || !surname || !email || !mobile || !password) {
     return res.status(400).json({ error: 'All signup fields are required.' });
   }
 
@@ -119,15 +119,13 @@ app.post('/api/signup', async (req, res) => {
     
     // Save partial profile
     const insertQuery = `
-      INSERT INTO users (id, name, surname, dob, gender, email, mobile, activity_type, activity_distance, is_paid, password_hash)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      INSERT INTO users (id, name, surname, email, mobile, activity_type, activity_distance, is_paid, password_hash)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
     `;
     await db.query(insertQuery, [
       userId,
       name.trim(),
       surname.trim(),
-      dob,
-      gender.toLowerCase(),
       email.toLowerCase().trim(),
       mobile.trim(),
       'run', // Default activity
