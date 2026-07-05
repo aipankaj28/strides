@@ -382,6 +382,14 @@ select option {
   gap: 1.5rem;
 }
 
+/* Close button only makes sense inside the mobile/tablet overlay drawer
+   (see the @media max-width:992px block below, which reveals it there).
+   Without this, an unstyled <button> was stretching full-width due to
+   the flex column's default align-items:stretch on the sidebar. */
+.profile-close-btn {
+  display: none;
+}
+
 .profile-card {
   text-align: center;
 }
