@@ -401,17 +401,19 @@ async function saveActivityRecord(user, sa) {
   const typeMatch = isActivityTypeMatch(user.activity_type, classType);
   const isValidDistance = typeMatch && (distanceKm >= targetDist);
   const speed = elapsedTimeSec > 0 ? (distanceKm / elapsedTimeSec) : 0;
+  const isManual = sa.manual === true;
 
   const upsertQuery = `
-    INSERT INTO activities (id, user_id, strava_activity_id, type, distance, elapsed_time, has_gps, start_latlng, activity_date, is_valid_distance, speed)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+    INSERT INTO activities (id, user_id, strava_activity_id, type, distance, elapsed_time, has_gps, start_latlng, activity_date, is_valid_distance, speed, is_manual)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
     ON CONFLICT (strava_activity_id) DO UPDATE SET
       distance = EXCLUDED.distance,
       elapsed_time = EXCLUDED.elapsed_time,
       has_gps = EXCLUDED.has_gps,
       start_latlng = EXCLUDED.start_latlng,
       is_valid_distance = EXCLUDED.is_valid_distance,
-      speed = EXCLUDED.speed
+      speed = EXCLUDED.speed,
+      is_manual = EXCLUDED.is_manual
   `;
 
   await db.query(upsertQuery, [
@@ -425,7 +427,8 @@ async function saveActivityRecord(user, sa) {
     startLatLngStr,
     activityDate,
     isValidDistance,
-    speed
+    speed,
+    isManual
   ]);
 }
 

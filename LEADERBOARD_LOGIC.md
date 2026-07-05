@@ -24,9 +24,9 @@ For each calendar day in the athlete's window, the day is classified as:
 
 | Day status | Condition |
 |---|---|
-| **Break** | No activity logged that day, **or** the only activity(ies) logged were the wrong type for the athlete's category |
-| **Covered, not met** | At least one correctly-typed activity was logged, but none of them reached the target distance |
-| **Covered, met** | At least one correctly-typed activity reached the target distance |
+| **Break** | No activity logged that day, **or** the only activity(ies) logged were the wrong type for the athlete's category, **or** the only activity(ies) logged were manually entered on Strava |
+| **Covered, not met** | At least one correctly-typed, non-manual activity was logged, but none of them reached the target distance |
+| **Covered, met** | At least one correctly-typed, non-manual activity reached the target distance |
 
 **Type matching** (from `isActivityTypeMatch()` in [strava-sync.js](strava-sync.js)):
 
@@ -37,6 +37,8 @@ For each calendar day in the athlete's window, the day is classified as:
 | Mix | `Run`, `Ride`, or `VirtualRide` |
 
 Anything else Strava can report — Swim, Hike, Walk, Yoga, Golf, etc. — never matches any category, so a day where the athlete only logged one of those is treated as a **break**, identical to not logging anything at all.
+
+**Manual entries** (Strava's `manual: true` field — activities typed in by the athlete with no device/GPS data behind them) are treated the same way: they never count toward covering a day, regardless of type or distance. A day with only a manual entry is a break. This is intentional — manual entries can't be verified, so they'd otherwise be the easiest way to fabricate a day's coverage and a fast pace with zero real effort. Manual entries still appear normally in the athlete's own "My Activities" view and still count toward `totalDistance`/`avgPaceSecPerKm` (both unfiltered, display-only fields) — only the leaderboard's break/Perfect calculation excludes them.
 
 If multiple activities are logged on the same day, the day is judged generously: it's "met" if **any** activity that day satisfies distance + type, even if others that day didn't.
 

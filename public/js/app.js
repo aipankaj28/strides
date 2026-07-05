@@ -823,6 +823,7 @@ const app = {
             <td><strong>${act.activity_date}</strong></td>
             <td>
               <i class="fa-solid ${typeDisplay.icon}"></i> ${typeDisplay.label}
+              ${act.is_manual ? '<span class="check-badge invalid" title="Manually entered on Strava (no device/GPS data) — counts as a break on the leaderboard" style="margin-left: 0.4rem;"><i class="fa-solid fa-pen"></i> Manual</span>' : ''}
             </td>
             <td>${parseFloat(act.distance).toFixed(2)} km</td>
             <td>${formatTime(act.elapsed_time)}</td>
@@ -847,6 +848,7 @@ const app = {
               <span class="activity-card-title">
                 <i class="fa-solid ${typeDisplay.icon}"></i> ${typeDisplay.label}
                 &middot; ${act.activity_date}
+                ${act.is_manual ? '<span class="check-badge invalid" title="Manually entered on Strava — counts as a break on the leaderboard"><i class="fa-solid fa-pen"></i> Manual</span>' : ''}
               </span>
             </div>
             <div class="activity-card-grid">
@@ -1149,6 +1151,7 @@ const app = {
 
     const hasGps = document.getElementById('mock-act-gps').checked;
     const coords = document.getElementById('mock-act-coords').value;
+    const isManual = document.getElementById('mock-act-manual').checked;
 
     if (!userId) {
       alert('Please select an athlete.');
@@ -1166,7 +1169,8 @@ const app = {
           distance: dist,
           elapsed_time: elapsedSecs,
           has_gps: hasGps,
-          start_latlng: coords
+          start_latlng: coords,
+          is_manual: isManual
         })
       });
 

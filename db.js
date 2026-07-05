@@ -94,6 +94,7 @@ async function initDb() {
       is_valid_distance BOOLEAN DEFAULT FALSE,
       is_consistent BOOLEAN DEFAULT FALSE,
       speed NUMERIC DEFAULT 0,
+      is_manual BOOLEAN DEFAULT FALSE,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
   `;
@@ -176,6 +177,17 @@ async function initDb() {
         } catch (err) {
           console.error('Failed to drop NOT NULL on users.dob/gender:', err.message);
         }
+      }
+
+      // Tracks whether an activity was manually entered on Strava (no device/
+      // GPS data) rather than recorded. Manual entries still show up in My
+      // Activities as normal, but the leaderboard treats their day as not
+      // covered -- see the breaks calculation in /api/leaderboard.
+      try {
+        await query('ALTER TABLE activities ADD COLUMN is_manual BOOLEAN DEFAULT FALSE');
+        console.log('Database Schema Migration: Added is_manual column to activities table.');
+      } catch (err) {
+        // Safe to ignore if column is already present
       }
 
       // DB-level backstop preventing two accounts from linking the same Strava

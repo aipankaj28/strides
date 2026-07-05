@@ -646,7 +646,7 @@ app.get('/api/leaderboard', async (req, res) => {
     const userIds = users.map(u => u.id);
     const placeholders = userIds.map((_, i) => `$${i + 1}`).join(',');
     const actsRes = await db.query(
-      `SELECT user_id, activity_date, distance, type, is_valid_distance, elapsed_time FROM activities WHERE user_id IN (${placeholders}) ORDER BY activity_date ASC`,
+      `SELECT user_id, activity_date, distance, type, is_valid_distance, elapsed_time, is_manual FROM activities WHERE user_id IN (${placeholders}) ORDER BY activity_date ASC`,
       userIds
     );
 
@@ -678,6 +678,12 @@ app.get('/api/leaderboard', async (req, res) => {
         const byDate = {};
         acts.forEach(a => {
           if (!byDate[a.activity_date]) byDate[a.activity_date] = { typeMatch: false, met: false };
+          // Manually-entered Strava activities (no device/GPS data) never count
+          // toward covering a day -- same treatment as a wrong-type activity.
+          // They still show normally in My Activities and count toward
+          // totalDistance/avgPace, but a day covered only by a manual entry is
+          // a break for leaderboard purposes.
+          if (a.is_manual) return;
           if (stravaSync.isActivityTypeMatch(u.activity_type, a.type)) byDate[a.activity_date].typeMatch = true;
           if (a.is_valid_distance) byDate[a.activity_date].met = true;
         });
@@ -761,7 +767,7 @@ app.get('/api/admin/users', isDevMode, async (req, res) => {
 
 // Insert simulated activity to test rules
 app.post('/api/admin/mock-activity', isDevMode, async (req, res) => {
-  const { userId, type, distance, elapsed_time, has_gps, start_latlng, activity_date } = req.body;
+  const { userId, type, distance, elapsed_time, has_gps, start_latlng, activity_date, is_manual } = req.body;
 
   if (!userId || !type || !distance || !elapsed_time || !activity_date) {
     return res.status(400).json({ error: 'All fields (userId, type, distance, elapsed_time, activity_date) are required.' });
@@ -788,8 +794,8 @@ app.post('/api/admin/mock-activity', isDevMode, async (req, res) => {
     const speed = elapsedSec > 0 ? (distanceKm / elapsedSec) : 0;
 
     const insertQuery = `
-      INSERT INTO activities (id, user_id, strava_activity_id, type, distance, elapsed_time, has_gps, start_latlng, activity_date, is_valid_distance, speed)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      INSERT INTO activities (id, user_id, strava_activity_id, type, distance, elapsed_time, has_gps, start_latlng, activity_date, is_valid_distance, speed, is_manual)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
     `;
     await db.query(insertQuery, [
       actId,
@@ -802,7 +808,8 @@ app.post('/api/admin/mock-activity', isDevMode, async (req, res) => {
       start_latlng || '19.0760,72.8777', // Default to Mumbai coordinates if empty
       activity_date,
       isValidDistance,
-      speed
+      speed,
+      is_manual === 'true' || is_manual === true
     ]);
 
     // Recalculate daily consistency for user
