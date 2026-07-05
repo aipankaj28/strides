@@ -152,6 +152,19 @@ async function initDb() {
         // Safe to ignore if column is already present
       }
 
+      // Mix athletes have no distance requirement, so activity_distance must
+      // be nullable for them (Run/Cycle still always set it via app-level
+      // validation in server.js). SQLite can't drop a NOT NULL constraint
+      // without a full table rebuild, so this only runs against Postgres.
+      if (dbType === 'postgres') {
+        try {
+          await query('ALTER TABLE users ALTER COLUMN activity_distance DROP NOT NULL');
+          console.log('Database Schema Migration: Dropped NOT NULL constraint on users.activity_distance.');
+        } catch (err) {
+          console.error('Failed to drop NOT NULL on users.activity_distance:', err.message);
+        }
+      }
+
       // DB-level backstop preventing two accounts from linking the same Strava
       // athlete (the app-level check in server.js is the primary guard; this
       // catches any race condition or code path that bypasses it). Partial

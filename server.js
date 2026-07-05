@@ -272,7 +272,8 @@ app.post('/api/reset-password', async (req, res) => {
 app.post('/api/checkout', async (req, res) => {
   const { userId, activity_type, activity_distance, activity_tier } = req.body;
 
-  if (!userId || !activity_type || !activity_distance) {
+  // Mix has no distance requirement at all -- only Run/Cycle need one selected.
+  if (!userId || !activity_type || (activity_type !== 'mix' && !activity_distance)) {
     return res.status(400).json({ error: 'Missing category, distance, or user identifier.' });
   }
 
@@ -290,7 +291,12 @@ app.post('/api/checkout', async (req, res) => {
           is_paid = TRUE
       WHERE id = $4
     `;
-    await db.query(updateQuery, [activity_type, activity_distance, activity_type === 'mix' ? null : activity_tier, userId]);
+    await db.query(updateQuery, [
+      activity_type,
+      activity_type === 'mix' ? null : activity_distance,
+      activity_type === 'mix' ? null : activity_tier,
+      userId
+    ]);
 
     const userRes = await db.query('SELECT * FROM users WHERE id = $1', [userId]);
     if (userRes.rows.length === 0) {
@@ -612,6 +618,14 @@ function dateRange(startStr, endStr) {
 // true position.
 app.get('/api/leaderboard', async (req, res) => {
   const { category, distance } = req.query;
+
+  // Mix athletes have no distance requirement and no leaderboard of their
+  // own -- they only appear (and rank) within Run/Cycle if they happen to
+  // register for those instead. There is deliberately no way to view a
+  // "Mixed" leaderboard.
+  if (category === 'mix') {
+    return res.json([]);
+  }
 
   try {
     let userQuery = 'SELECT id, name, surname, activity_type, activity_distance FROM users WHERE is_paid = TRUE';

@@ -605,15 +605,8 @@ const app = {
     selectedCard.classList.add('selected');
 
     if (cat === 'mix') {
-      // Mix has no tier — single flat distance select, unchanged behavior
-      const mixSelect = document.getElementById('select-dist-mix');
-      if (mixSelect) {
-        mixSelect.disabled = false;
-        if (mixSelect.value === "") {
-          const firstValidOpt = Array.from(mixSelect.options).find(opt => opt.value !== "");
-          if (firstValidOpt) mixSelect.value = firstValidOpt.value;
-        }
-      }
+      // Mix has no tier and no distance requirement at all
+      state.cart.activity_distance = null;
     } else {
       // Run / Cycle: enable the tier select and default to Pro
       const tierSelect = document.getElementById(`select-tier-${cat}`);
@@ -676,8 +669,7 @@ const app = {
     const tier = state.cart.activity_tier;
 
     if (cat === 'mix') {
-      const mixSelect = document.getElementById('select-dist-mix');
-      state.cart.activity_distance = mixSelect ? mixSelect.value : '';
+      state.cart.activity_distance = null;
     } else if (tier === 'flexi') {
       const customInput = document.getElementById(`custom-dist-${cat}`);
       state.cart.activity_distance = (customInput ? customInput.value : FLEXI_MIN_KM[cat]) + 'k';
@@ -786,7 +778,8 @@ const app = {
       const tierLabel = data.user.activity_tier
         ? ` — ${data.user.activity_tier.charAt(0).toUpperCase() + data.user.activity_tier.slice(1)}`
         : '';
-      document.getElementById('dash-event').textContent = `${data.user.activity_type}${tierLabel} (${data.user.activity_distance})`;
+      const distanceLabel = data.user.activity_distance ? ` (${data.user.activity_distance})` : '';
+      document.getElementById('dash-event').textContent = `${data.user.activity_type}${tierLabel}${distanceLabel}`;
 
       // Connection Status Badge
       const statusBadge = document.getElementById('strava-status-badge');
@@ -804,7 +797,7 @@ const app = {
 
       // Metric Summary Boxes
       document.getElementById('stat-streak').textContent = `${data.streak} Days`;
-      document.getElementById('stat-distance').textContent = `${data.targetDistance} km`;
+      document.getElementById('stat-distance').textContent = data.user.activity_distance ? `${data.targetDistance} km` : 'No Target';
       document.getElementById('stat-activities').textContent = data.activities.length;
 
       // Populate Sync Log Table

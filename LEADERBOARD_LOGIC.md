@@ -4,7 +4,9 @@ This document explains the ranking logic behind the Global Leaderboard (`GET /ap
 
 ## Who appears on the leaderboard
 
-Every athlete who has completed registration appears — **there is no eligibility gate**. An athlete who has never logged a single activity still shows up, ranked at (or near) the bottom. The leaderboard is scoped to one event sub-tab at a time (Running/Walking, Cycling, or Mixed) via the `category` filter.
+Every athlete who has completed registration appears — **there is no eligibility gate**. An athlete who has never logged a single activity still shows up, ranked at (or near) the bottom. The leaderboard is scoped to one event sub-tab at a time (Running/Walking or Cycling) via the `category` filter.
+
+**Mixed has no leaderboard at all.** Athletes who register for Mix have no target distance and never appear in any ranking; `GET /api/leaderboard?category=mix` explicitly returns an empty array. Mixed athletes can still view their own Activity Logs and browse the Running/Walking and Cycling leaderboards — they just never rank anywhere themselves.
 
 ## Step 1 — Establish each athlete's window
 

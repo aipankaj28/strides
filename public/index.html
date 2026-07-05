@@ -241,13 +241,7 @@
             <div class="category-card" id="card-mix" onclick="app.selectCategory('mix')">
               <div class="category-icon"><i class="fa-solid fa-person-hiking"></i></div>
               <h3>Mix Event</h3>
-              <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">Choose your distance below</p>
-              <select id="select-dist-mix" class="distance-select" onclick="event.stopPropagation();" onchange="event.stopPropagation(); app.validateCartSelection();" disabled>
-                <option value="" disabled selected style="display: none;"></option>
-                <option value="10k">10K (Run or Bike)</option>
-                <option value="20k">20K (Run or Bike)</option>
-                <option value="30k">30K (Run or Bike)</option>
-              </select>
+              <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">No distance selection required — run or bike freely.</p>
             </div>
           </div>
 
@@ -408,9 +402,6 @@
                 </button>
                 <button class="subtab-btn" id="subtab-cycle" onclick="app.switchLeaderboardCategory('cycle')">
                   <i class="fa-solid fa-bicycle"></i> Cycling
-                </button>
-                <button class="subtab-btn" id="subtab-mix" onclick="app.switchLeaderboardCategory('mix')">
-                  <i class="fa-solid fa-person-hiking"></i> Mixed
                 </button>
               </div>
 
