@@ -152,6 +152,17 @@ async function initDb() {
         // Safe to ignore if column is already present
       }
 
+      // DB-level backstop preventing two accounts from linking the same Strava
+      // athlete (the app-level check in server.js is the primary guard; this
+      // catches any race condition or code path that bypasses it). Partial
+      // index so unlinked users (strava_id IS NULL) don't collide with each other.
+      try {
+        await query('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_strava_id_unique ON users (strava_id) WHERE strava_id IS NOT NULL');
+        console.log('Database Schema Migration: Added unique index on users.strava_id.');
+      } catch (err) {
+        console.error('Failed to create unique index on users.strava_id (likely duplicate strava_id rows already exist):', err.message);
+      }
+
       console.log('Database tables verified/created successfully.');
     } catch (error) {
       console.error('Failed to initialize database tables:', error);

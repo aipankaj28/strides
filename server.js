@@ -355,6 +355,22 @@ app.get('/api/auth/strava/callback', async (req, res) => {
     const hostUrl = `${req.protocol}://${req.get('host')}`;
     const tokens = await stravaSync.exchangeStravaCode(code, hostUrl);
 
+    // Reject if this Strava athlete is already linked to a different Strides account
+    const conflictRes = await db.query(
+      'SELECT id, email FROM users WHERE strava_id = $1 AND id != $2',
+      [tokens.strava_id, userId]
+    );
+    if (conflictRes.rows.length > 0) {
+      console.warn(`Strava account ${tokens.strava_id} already linked to user ${conflictRes.rows[0].id}; rejecting link attempt from ${userId}.`);
+      const requesterRes = await db.query('SELECT email FROM users WHERE id = $1', [userId]);
+      const requesterEmail = requesterRes.rows.length > 0 ? requesterRes.rows[0].email : null;
+      const redirectBase = requesterEmail
+        ? `/#/connect-strava?email=${encodeURIComponent(requesterEmail)}`
+        : '/#/connect-strava';
+      const message = 'This Strava account is already linked to another Strides profile. Please use a different Strava account.';
+      return res.redirect(`${redirectBase}&error=${encodeURIComponent(message)}`);
+    }
+
     // Update tokens in users database
     const updateQuery = `
       UPDATE users
