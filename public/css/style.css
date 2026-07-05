@@ -600,11 +600,16 @@ select option {
   margin-bottom: 0.6rem;
 }
 
-.activity-card-grid span:first-child {
+/* Each row is a label/value pair of <span>s (Distance, Elapsed time, Speed),
+   so target every odd/even child, not :first-child/:last-child -- those
+   pseudo-classes only ever match the single true first/last span among
+   ALL of them (i.e. just the Speed row), leaving Distance/Elapsed time
+   unstyled. */
+.activity-card-grid span:nth-child(odd) {
   color: var(--text-secondary);
 }
 
-.activity-card-grid span:last-child {
+.activity-card-grid span:nth-child(even) {
   text-align: right;
 }
 
