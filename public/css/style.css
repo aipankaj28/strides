@@ -1021,9 +1021,12 @@ tbody tr:hover {
   left: 0;
   width: 100vw;
   height: 100vh;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+  /* No backdrop-filter here on purpose — on some Android Chrome/GPU
+     combinations, blurring this dimming overlay ends up visually
+     blurring the sidebar drawn in front of it too (a real-device
+     compositor bug, not reproducible in desktop/headless testing).
+     A plain darkened scrim avoids the bug entirely. */
+  background: rgba(0, 0, 0, 0.75);
   z-index: 998;
   animation: fadeIn 0.2s ease forwards;
 }
