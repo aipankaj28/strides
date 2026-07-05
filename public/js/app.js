@@ -45,6 +45,48 @@ const TIER_DISTANCE_OPTIONS = {
 // Flexi tier = any distance above this daily minimum (no fixed list)
 const FLEXI_MIN_KM = { run: 2, cycle: 10 };
 
+// Icon + label per Strava activity type (lowercased, spaces/hyphens stripped).
+// Covers the types relevant to Run/Cycle/Mix plus common others a synced
+// Strava account might log (swim, hike, workout, etc.) so nothing gets
+// silently mislabeled as a type it isn't.
+const ACTIVITY_TYPE_DISPLAY = {
+  run: { icon: 'fa-person-running', label: 'Run' },
+  trailrun: { icon: 'fa-person-running', label: 'Trail Run' },
+  walk: { icon: 'fa-person-walking', label: 'Walk' },
+  hike: { icon: 'fa-person-hiking', label: 'Hike' },
+  ride: { icon: 'fa-bicycle', label: 'Ride' },
+  virtualride: { icon: 'fa-bicycle', label: 'Virtual Ride' },
+  mountainbikeride: { icon: 'fa-bicycle', label: 'Mountain Bike' },
+  gravelride: { icon: 'fa-bicycle', label: 'Gravel Ride' },
+  ebikeride: { icon: 'fa-bicycle', label: 'E-Bike Ride' },
+  handcycle: { icon: 'fa-wheelchair-move', label: 'Handcycle' },
+  swim: { icon: 'fa-person-swimming', label: 'Swim' },
+  workout: { icon: 'fa-dumbbell', label: 'Workout' },
+  weighttraining: { icon: 'fa-dumbbell', label: 'Weight Training' },
+  crossfit: { icon: 'fa-dumbbell', label: 'CrossFit' },
+  yoga: { icon: 'fa-spa', label: 'Yoga' },
+  rowing: { icon: 'fa-water', label: 'Rowing' },
+  kayaking: { icon: 'fa-water', label: 'Kayaking' },
+  standuppaddling: { icon: 'fa-water', label: 'Paddling' },
+  surfing: { icon: 'fa-water', label: 'Surfing' },
+  alpineski: { icon: 'fa-person-skiing', label: 'Alpine Ski' },
+  nordicski: { icon: 'fa-person-skiing-nordic', label: 'Nordic Ski' },
+  snowboard: { icon: 'fa-person-snowboarding', label: 'Snowboard' },
+  iceskate: { icon: 'fa-person-skating', label: 'Ice Skate' },
+  wheelchair: { icon: 'fa-wheelchair-move', label: 'Wheelchair' }
+};
+
+// Looks up the icon/label for a raw Strava activity type string, falling
+// back to a generic stopwatch icon + the raw type name for anything not
+// explicitly mapped above (e.g. Golf, Tennis, RockClimbing).
+function getActivityDisplay(rawType) {
+  const key = (rawType || '').toLowerCase().replace(/[\s_-]/g, '');
+  const match = ACTIVITY_TYPE_DISPLAY[key];
+  if (match) return match;
+  const fallbackLabel = rawType ? rawType.charAt(0).toUpperCase() + rawType.slice(1) : 'Activity';
+  return { icon: 'fa-stopwatch', label: fallbackLabel };
+}
+
 // Formatting Helpers
 function formatTime(seconds) {
   if (isNaN(seconds) || seconds <= 0) return '00:00:00';
@@ -787,10 +829,11 @@ const app = {
       } else {
         data.activities.forEach(act => {
           const row = document.createElement('tr');
+          const typeDisplay = getActivityDisplay(act.type);
           row.innerHTML = `
             <td><strong>${act.activity_date}</strong></td>
-            <td style="text-transform: capitalize;">
-              ${act.type === 'run' ? '<i class="fa-solid fa-person-running"></i> Run' : '<i class="fa-solid fa-bicycle"></i> Cycle'}
+            <td>
+              <i class="fa-solid ${typeDisplay.icon}"></i> ${typeDisplay.label}
             </td>
             <td>${parseFloat(act.distance).toFixed(2)} km</td>
             <td>${formatTime(act.elapsed_time)}</td>
@@ -812,8 +855,8 @@ const app = {
           card.className = 'activity-card';
           card.innerHTML = `
             <div class="activity-card-header">
-              <span class="activity-card-title" style="text-transform: capitalize;">
-                ${act.type === 'run' ? '<i class="fa-solid fa-person-running"></i> Run' : '<i class="fa-solid fa-bicycle"></i> Cycle'}
+              <span class="activity-card-title">
+                <i class="fa-solid ${typeDisplay.icon}"></i> ${typeDisplay.label}
                 &middot; ${act.activity_date}
               </span>
             </div>
