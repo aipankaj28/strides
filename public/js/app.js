@@ -929,14 +929,27 @@ const app = {
     state.leaderboardCategory = category;
     document.querySelectorAll('.subtab-btn').forEach(btn => btn.classList.remove('active'));
     document.getElementById(`subtab-${category}`).classList.add('active');
+
+    // Only Run/Cycle have a distance filter; show the matching one and reset
+    // both so a stale filter from the previous tab doesn't carry over.
+    const runWrap = document.getElementById('leaderboard-distance-run-wrap');
+    const cycleWrap = document.getElementById('leaderboard-distance-cycle-wrap');
+    document.getElementById('leaderboard-distance-run').value = '';
+    document.getElementById('leaderboard-distance-cycle').value = '';
+    if (runWrap) runWrap.style.display = category === 'run' ? '' : 'none';
+    if (cycleWrap) cycleWrap.style.display = category === 'cycle' ? '' : 'none';
+
     this.loadLeaderboard();
   },
 
   async loadLeaderboard() {
     const category = state.leaderboardCategory;
+    const distanceSelect = document.getElementById(`leaderboard-distance-${category}`);
+    const distance = distanceSelect ? distanceSelect.value : '';
 
     let url = '/api/leaderboard?';
     if (category) url += `category=${category}&`;
+    if (distance) url += `distance=${distance}&`;
 
     try {
       const res = await fetch(url);

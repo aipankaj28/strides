@@ -587,8 +587,13 @@ function dateRange(startStr, endStr) {
 
 // Global Leaderboard API
 //
-// Every paid athlete in the selected category is shown (no eligibility gate) and
-// ranked using a "breaks" model instead of the old all-or-nothing streak flag:
+// Query params: category (run/cycle/mix) and optional distance (e.g. '21k'),
+// which further narrows to athletes registered for that exact target
+// distance within the category.
+//
+// Every paid athlete in the selected category (and distance, if given) is
+// shown (no eligibility gate) and ranked using a "breaks" model instead of
+// the old all-or-nothing streak flag:
 //   - Window = [effective start date, today]. Effective start = the athlete's
 //     earliest activity if that's before the official event start (2026-07-26),
 //     otherwise the event start itself. Athletes with no activities use the
@@ -606,14 +611,18 @@ function dateRange(startStr, endStr) {
 // ties share a rank number, and the next distinct entry resumes at its
 // true position.
 app.get('/api/leaderboard', async (req, res) => {
-  const { category } = req.query;
+  const { category, distance } = req.query;
 
   try {
     let userQuery = 'SELECT id, name, surname, activity_type, activity_distance FROM users WHERE is_paid = TRUE';
     const params = [];
     if (category) {
-      userQuery += ' AND activity_type = $1';
       params.push(category);
+      userQuery += ` AND activity_type = $${params.length}`;
+    }
+    if (distance) {
+      params.push(distance);
+      userQuery += ` AND activity_distance = $${params.length}`;
     }
     const usersRes = await db.query(userQuery, params);
     const users = usersRes.rows;
