@@ -951,7 +951,7 @@ const app = {
         const emptyMsg = 'No athletes registered for this event yet.';
         tbody.innerHTML = `
           <tr>
-            <td colspan="5" style="text-align: center; color: var(--text-secondary); padding: 2rem;">
+            <td colspan="6" style="text-align: center; color: var(--text-secondary); padding: 2rem;">
               ${emptyMsg}
             </td>
           </tr>
@@ -974,12 +974,15 @@ const app = {
 
         const status = this.formatLeaderboardStatus(item);
 
+        const paceLabel = this.formatPace(item.avgPaceSecPerKm);
+
         tr.innerHTML = `
           <td class="rank-column ${rankClass}">#${item.rank}</td>
           <td><strong>${item.name}</strong></td>
           <td style="text-transform: capitalize;">${item.category} (${item.targetDistance})</td>
           <td style="color: ${status.color}; font-weight: 700;">${status.label}</td>
           <td>${item.totalDistance.toFixed(2)} km</td>
+          <td>${paceLabel}</td>
         `;
         tbody.appendChild(tr);
 
@@ -992,7 +995,7 @@ const app = {
             <div class="leaderboard-card-meta">${item.category} (${item.targetDistance})</div>
           </div>
           <div class="leaderboard-card-stats">
-            <div class="leaderboard-card-distance">${item.totalDistance.toFixed(2)} km</div>
+            <div class="leaderboard-card-distance">${item.totalDistance.toFixed(2)} km &middot; ${paceLabel}</div>
             <div class="leaderboard-card-speed" style="color: ${status.color};">${status.label}</div>
           </div>
         `;
@@ -1013,6 +1016,15 @@ const app = {
       return { label: 'Consistent (Short)', color: 'var(--secondary)' };
     }
     return { label: `${item.breaks} Break${item.breaks === 1 ? '' : 's'}`, color: 'var(--danger, #ef4444)' };
+  },
+
+  // Formats seconds-per-km as "M:SS /km"; athletes with zero logged distance
+  // get avgPaceSecPerKm = Infinity from the API, shown as a dash.
+  formatPace(secPerKm) {
+    if (!isFinite(secPerKm)) return '—';
+    const mins = Math.floor(secPerKm / 60);
+    const secs = Math.round(secPerKm % 60);
+    return `${mins}:${String(secs).padStart(2, '0')} /km`;
   },
 
   calculateAge(dobStr) {

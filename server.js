@@ -600,8 +600,11 @@ function dateRange(startStr, endStr) {
 //     covered day was met.
 // Ranking: fewer breaks first; among equal breaks, isPerfect athletes rank
 // above non-perfect ones; ties broken by total distance (sum of everything
-// logged, valid or not). Standard competition ranking — exact ties share a
-// rank number, and the next distinct entry resumes at its true position.
+// logged, valid or not); remaining ties broken by average pace (total
+// elapsed time / total distance across every logged activity) — a faster
+// pace (fewer seconds per km) ranks higher. Standard competition ranking —
+// exact ties share a rank number, and the next distinct entry resumes at
+// its true position.
 app.get('/api/leaderboard', async (req, res) => {
   const { category } = req.query;
 
@@ -622,7 +625,7 @@ app.get('/api/leaderboard', async (req, res) => {
     const userIds = users.map(u => u.id);
     const placeholders = userIds.map((_, i) => `$${i + 1}`).join(',');
     const actsRes = await db.query(
-      `SELECT user_id, activity_date, distance, type, is_valid_distance FROM activities WHERE user_id IN (${placeholders}) ORDER BY activity_date ASC`,
+      `SELECT user_id, activity_date, distance, type, is_valid_distance, elapsed_time FROM activities WHERE user_id IN (${placeholders}) ORDER BY activity_date ASC`,
       userIds
     );
 
@@ -638,6 +641,11 @@ app.get('/api/leaderboard', async (req, res) => {
     let leaderboard = users.map(u => {
       const acts = actsByUser[u.id] || [];
       const totalDistance = acts.reduce((sum, a) => sum + parseFloat(a.distance), 0);
+      const totalElapsedSec = acts.reduce((sum, a) => sum + parseFloat(a.elapsed_time), 0);
+      // Average pace across every logged activity (seconds per km) -- lower is
+      // faster. Athletes with zero distance logged get Infinity so they never
+      // win a pace tie-break.
+      const avgPaceSecPerKm = totalDistance > 0 ? totalElapsedSec / totalDistance : Infinity;
       const effectiveStart = (acts.length > 0 && acts[0].activity_date < eventStartDate)
         ? acts[0].activity_date
         : eventStartDate;
@@ -672,26 +680,31 @@ app.get('/api/leaderboard', async (req, res) => {
         targetDistance: u.activity_distance,
         breaks,
         isPerfect,
-        totalDistance
+        totalDistance,
+        avgPaceSecPerKm
       };
     });
 
-    // Fewer breaks first; among equal breaks, isPerfect ranks above not-perfect; then distance desc
+    // Fewer breaks first; among equal breaks, isPerfect ranks above not-perfect;
+    // then distance desc; final tie-break is average pace ascending (faster wins)
     leaderboard.sort((a, b) =>
       a.breaks - b.breaks ||
       (b.isPerfect - a.isPerfect) ||
-      b.totalDistance - a.totalDistance
+      b.totalDistance - a.totalDistance ||
+      a.avgPaceSecPerKm - b.avgPaceSecPerKm
     );
 
-    // Standard competition ranking: ties on (breaks, isPerfect, totalDistance) share a rank
-    let lastRank = 0, lastBreaks = null, lastPerfect = null, lastDistance = null;
+    // Standard competition ranking: ties on (breaks, isPerfect, totalDistance, pace) share a rank
+    let lastRank = 0, lastBreaks = null, lastPerfect = null, lastDistance = null, lastPace = null;
     leaderboard = leaderboard.map((item, idx) => {
-      const tied = lastBreaks === item.breaks && lastPerfect === item.isPerfect && lastDistance === item.totalDistance;
+      const tied = lastBreaks === item.breaks && lastPerfect === item.isPerfect
+        && lastDistance === item.totalDistance && lastPace === item.avgPaceSecPerKm;
       const rank = tied ? lastRank : idx + 1;
       lastRank = rank;
       lastBreaks = item.breaks;
       lastPerfect = item.isPerfect;
       lastDistance = item.totalDistance;
+      lastPace = item.avgPaceSecPerKm;
       return { rank, ...item };
     });
 
