@@ -743,6 +743,66 @@ app.get('/api/leaderboard', async (req, res) => {
 });
 
 // ---------------------------------------------------------
+// ADMIN ACTIVITY VIEWER (secret-gated, works in production)
+// ---------------------------------------------------------
+
+const isAdminAuthorized = (req, res, next) => {
+  const secret = req.get('x-admin-secret') || req.query.admin_secret;
+  const expected = process.env.ADMIN_SECRET ? process.env.ADMIN_SECRET.trim() : undefined;
+  if (expected && secret === expected) {
+    return next();
+  }
+  res.status(401).json({ error: 'Invalid or missing admin secret.' });
+};
+
+// Summary list of every athlete, for the Admin page's top-level table.
+// Activities are NOT included here (fetched per-user on expand) to keep
+// this fast even with hundreds of registered athletes.
+app.get('/api/admin/dashboard-users', isAdminAuthorized, async (req, res) => {
+  try {
+    const usersRes = await db.query(`
+      SELECT u.id, u.name, u.surname, u.email, u.activity_type, u.activity_tier, u.activity_distance,
+             u.is_paid, u.strava_id, u.strava_access_token, u.last_synced_at, u.registered_at,
+             (SELECT COUNT(*) FROM activities a WHERE a.user_id = u.id) as activity_count
+      FROM users u
+      ORDER BY u.registered_at DESC
+    `);
+    const users = usersRes.rows.map(u => ({
+      id: u.id,
+      name: `${u.name} ${u.surname}`,
+      email: u.email,
+      category: u.activity_type,
+      tier: u.activity_tier,
+      distance: u.activity_distance,
+      isPaid: u.is_paid,
+      stravaConnected: !!u.strava_access_token,
+      stravaId: u.strava_id,
+      lastSyncedAt: u.last_synced_at,
+      registeredAt: u.registered_at,
+      activityCount: parseInt(u.activity_count)
+    }));
+    res.json(users);
+  } catch (err) {
+    console.error('Error fetching admin dashboard users:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Full activity list for one athlete, loaded when their row is expanded.
+app.get('/api/admin/user-activities/:userId', isAdminAuthorized, async (req, res) => {
+  try {
+    const actRes = await db.query(
+      'SELECT * FROM activities WHERE user_id = $1 ORDER BY activity_date DESC',
+      [req.params.userId]
+    );
+    res.json(actRes.rows);
+  } catch (err) {
+    console.error('Error fetching admin user activities:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ---------------------------------------------------------
 // DEVELOPER SIMULATOR / ADMIN APIS (Protected by DEV_MODE)
 // ---------------------------------------------------------
 

@@ -14,7 +14,10 @@ const state = {
   dashboardPollSeconds: 15,
   dashboardPollTimer: null,
   eventStartDate: '2026-07-26',
-  resetPasswordEmail: null
+  resetPasswordEmail: null,
+  adminSecret: null,
+  adminExpandedUserId: null,
+  adminActivitiesCache: {}
 };
 
 // Formats a YYYY-MM-DD date string as "26th July 2026" for display text
@@ -350,6 +353,35 @@ const app = {
       }
     });
 
+    // Admin Login Form Handler — verifies the password by attempting the
+    // actual data fetch; a real ADMIN_SECRET mismatch surfaces as a 401.
+    document.getElementById('admin-login-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const secret = document.getElementById('admin-secret-input').value;
+      const errorEl = document.getElementById('admin-login-error');
+      errorEl.style.display = 'none';
+
+      try {
+        const res = await fetch('/api/admin/dashboard-users', {
+          headers: { 'x-admin-secret': secret }
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          errorEl.textContent = data.error || 'Incorrect admin password.';
+          errorEl.style.display = 'block';
+          return;
+        }
+
+        state.adminSecret = secret;
+        sessionStorage.setItem('admin_secret', secret);
+        this.switchView('admin-dashboard');
+      } catch (err) {
+        console.error(err);
+        errorEl.textContent = 'Connection error logging in.';
+        errorEl.style.display = 'block';
+      }
+    });
+
     // Cart Submission Handler — confirms the category/distance selection
     // (no payment is collected) and moves straight to the mandatory Strava step
     document.getElementById('cart-form').addEventListener('submit', async (e) => {
@@ -394,6 +426,12 @@ const app = {
     if (savedEmail) {
       // Pre-fill login
       document.getElementById('login-email').value = savedEmail;
+    }
+    // Admin session is stored separately (sessionStorage — cleared when the
+    // tab closes) since it's a shared password, not a personal login.
+    const savedAdminSecret = sessionStorage.getItem('admin_secret');
+    if (savedAdminSecret) {
+      state.adminSecret = savedAdminSecret;
     }
   },
 
@@ -456,6 +494,8 @@ const app = {
     else if (cleanHash === '#/login') this.switchView('login');
     else if (cleanHash === '#/forgot-password') this.switchView('forgot-password');
     else if (cleanHash === '#/reset-password' && state.resetPasswordEmail) this.switchView('reset-password');
+    else if (cleanHash === '#/admin-login') this.switchView('admin-login');
+    else if (cleanHash === '#/admin-dashboard' && state.adminSecret) this.switchView('admin-dashboard');
     else if (cleanHash === '#/signup') this.switchView('signup');
     else if (cleanHash === '#/cart' && state.currentUser) this.switchView('cart');
     else if (cleanHash === '#/connect-strava' && state.currentUser) this.switchView('connect-strava');
@@ -550,6 +590,9 @@ const app = {
     } else if (viewName === 'dashboard') {
       this.loadDashboard();
       this.startDashboardPolling();
+    } else if (viewName === 'admin-dashboard') {
+      this.stopDashboardPolling();
+      this.loadAdminUsers();
     } else {
       this.stopDashboardPolling();
     }
@@ -1036,6 +1079,161 @@ const app = {
     const mins = Math.floor(secPerKm / 60);
     const secs = Math.round(secPerKm % 60);
     return `${mins}:${String(secs).padStart(2, '0')} /km`;
+  },
+
+  // ---------------------------------------------------------
+  // ADMIN ACTIVITY VIEWER
+  // ---------------------------------------------------------
+
+  adminLogout() {
+    state.adminSecret = null;
+    state.adminExpandedUserId = null;
+    state.adminActivitiesCache = {};
+    sessionStorage.removeItem('admin_secret');
+    this.switchView('gate');
+  },
+
+  async loadAdminUsers() {
+    if (!state.adminSecret) {
+      this.switchView('admin-login');
+      return;
+    }
+
+    const tbody = document.getElementById('admin-users-table-body');
+    try {
+      const res = await fetch('/api/admin/dashboard-users', {
+        headers: { 'x-admin-secret': state.adminSecret }
+      });
+
+      if (res.status === 401) {
+        // Stored secret no longer valid — force re-login rather than show a broken page
+        this.adminLogout();
+        alert('Admin session expired or invalid. Please log in again.');
+        return;
+      }
+
+      const users = await res.json();
+      state.adminUsers = users;
+      this.renderAdminUsersTable(users);
+    } catch (err) {
+      console.error(err);
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--danger); padding: 2rem;">Failed to load athletes.</td></tr>`;
+    }
+  },
+
+  renderAdminUsersTable(users) {
+    const tbody = document.getElementById('admin-users-table-body');
+    tbody.innerHTML = '';
+
+    if (users.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-secondary); padding: 2rem;">No athletes registered yet.</td></tr>`;
+      return;
+    }
+
+    users.forEach(u => {
+      const row = document.createElement('tr');
+      row.style.cursor = 'pointer';
+      row.innerHTML = `
+        <td><i class="fa-solid fa-chevron-right admin-expand-icon" id="admin-chevron-${u.id}"></i></td>
+        <td><strong>${u.name}</strong><br><span style="font-size: 0.75rem; color: var(--text-secondary);">${u.email}</span></td>
+        <td style="text-transform: capitalize;">${u.category}${u.tier ? ` — ${u.tier}` : ''}${u.distance ? ` (${u.distance})` : ''}</td>
+        <td>${u.stravaConnected
+          ? '<span class="check-badge valid"><i class="fa-solid fa-circle-check"></i> Connected</span>'
+          : '<span class="check-badge invalid"><i class="fa-solid fa-circle-xmark"></i> Not Linked</span>'}</td>
+        <td>${u.activityCount}</td>
+        <td>${u.lastSyncedAt ? new Date(u.lastSyncedAt).toLocaleString() : 'Never'}</td>
+      `;
+      row.addEventListener('click', () => this.toggleAdminUserExpand(u.id));
+      tbody.appendChild(row);
+
+      const expandRow = document.createElement('tr');
+      expandRow.id = `admin-expand-row-${u.id}`;
+      expandRow.style.display = 'none';
+      expandRow.innerHTML = `
+        <td colspan="6" style="padding: 0;">
+          <div id="admin-expand-content-${u.id}" style="padding: 1rem 1.5rem; background: rgba(255,255,255,0.02);">
+            <div style="text-align: center; color: var(--text-secondary); padding: 1rem;">Loading activities...</div>
+          </div>
+        </td>
+      `;
+      tbody.appendChild(expandRow);
+    });
+  },
+
+  async toggleAdminUserExpand(userId) {
+    const expandRow = document.getElementById(`admin-expand-row-${userId}`);
+    const chevron = document.getElementById(`admin-chevron-${userId}`);
+    const isOpen = expandRow.style.display !== 'none';
+
+    if (isOpen) {
+      expandRow.style.display = 'none';
+      chevron.classList.remove('fa-chevron-down');
+      chevron.classList.add('fa-chevron-right');
+      return;
+    }
+
+    expandRow.style.display = 'table-row';
+    chevron.classList.remove('fa-chevron-right');
+    chevron.classList.add('fa-chevron-down');
+
+    if (state.adminActivitiesCache[userId]) {
+      this.renderAdminUserActivities(userId, state.adminActivitiesCache[userId]);
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/admin/user-activities/${userId}`, {
+        headers: { 'x-admin-secret': state.adminSecret }
+      });
+      const activities = await res.json();
+      state.adminActivitiesCache[userId] = activities;
+      this.renderAdminUserActivities(userId, activities);
+    } catch (err) {
+      console.error(err);
+      document.getElementById(`admin-expand-content-${userId}`).innerHTML =
+        '<div style="text-align: center; color: var(--danger); padding: 1rem;">Failed to load activities.</div>';
+    }
+  },
+
+  renderAdminUserActivities(userId, activities) {
+    const container = document.getElementById(`admin-expand-content-${userId}`);
+
+    if (activities.length === 0) {
+      container.innerHTML = '<div style="text-align: center; color: var(--text-secondary); padding: 1rem;">No activities logged.</div>';
+      return;
+    }
+
+    const rows = activities.map(act => {
+      const typeDisplay = getActivityDisplay(act.type);
+      return `
+        <tr>
+          <td>${act.activity_date}</td>
+          <td><i class="fa-solid ${typeDisplay.icon}"></i> ${typeDisplay.label}${act.is_manual ? ' <span class="check-badge invalid" style="margin-left: 0.3rem;"><i class="fa-solid fa-pen"></i> Manual</span>' : ''}</td>
+          <td>${parseFloat(act.distance).toFixed(2)} km</td>
+          <td>${formatTime(act.elapsed_time)}</td>
+          <td>${act.is_valid_distance ? '<span class="check-badge valid">Passed</span>' : '<span class="check-badge invalid">Short</span>'}</td>
+          <td>${act.is_consistent ? '<span class="check-badge valid">Streak OK</span>' : '<span class="check-badge invalid">Broken</span>'}</td>
+          <td>${act.has_gps ? 'Yes' : 'No'}</td>
+        </tr>
+      `;
+    }).join('');
+
+    container.innerHTML = `
+      <table style="width: 100%; font-size: 0.85rem;">
+        <thead>
+          <tr>
+            <th style="text-align: left; padding-bottom: 0.5rem;">Date</th>
+            <th style="text-align: left; padding-bottom: 0.5rem;">Activity</th>
+            <th style="text-align: left; padding-bottom: 0.5rem;">Distance</th>
+            <th style="text-align: left; padding-bottom: 0.5rem;">Elapsed Time</th>
+            <th style="text-align: left; padding-bottom: 0.5rem;">Check 1</th>
+            <th style="text-align: left; padding-bottom: 0.5rem;">Check 2</th>
+            <th style="text-align: left; padding-bottom: 0.5rem;">GPS</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    `;
   },
 
   // ---------------------------------------------------------
