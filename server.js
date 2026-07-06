@@ -589,6 +589,18 @@ function dateRange(startStr, endStr) {
   return dates;
 }
 
+// Returns today's calendar date (YYYY-MM-DD) in IST (UTC+5:30), not the
+// server's own timezone. Railway runs containers in UTC, so without this,
+// the leaderboard's "today" cutoff would be up to a day behind IST for
+// roughly the first ~5.5 hours of every UTC day, since EVENT_START_DATE
+// and every athlete's activity_date are meant to be read as IST calendar
+// dates (Strava activities for Indian athletes are already local/IST).
+const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+function getTodayIST() {
+  const istNow = new Date(Date.now() + IST_OFFSET_MS);
+  return istNow.toISOString().slice(0, 10);
+}
+
 // Global Leaderboard API
 //
 // Query params: category (run/cycle/mix) and optional distance (e.g. '21k'),
@@ -656,7 +668,7 @@ app.get('/api/leaderboard', async (req, res) => {
     });
 
     const eventStartDate = EVENT_START_DATE;
-    const today = new Date().toISOString().slice(0, 10);
+    const today = getTodayIST();
 
     let leaderboard = users.map(u => {
       // Activities logged before the official event start are ignored
