@@ -517,7 +517,11 @@ async function syncUserActivities(userId) {
     // Get activities. Pull activities since the start of event preparation.
     // If the event hasn't started yet, fetch activities from the last 30 days for testing.
     // Otherwise, fetch activities starting from the event start date.
-    const eventStart = Math.floor(new Date(EVENT_START_DATE).getTime() / 1000);
+    // EVENT_START_DATE is a date-only string ("2026-07-06"), which JS parses
+    // as UTC midnight -- but the event is meant to start at IST midnight
+    // (5.5 hours earlier), so subtract the IST offset to get the correct instant.
+    const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+    const eventStart = Math.floor((new Date(EVENT_START_DATE).getTime() - IST_OFFSET_MS) / 1000);
     const nowEpoch = Math.floor(Date.now() / 1000);
     const queryEpoch = nowEpoch < eventStart ? (nowEpoch - 30 * 24 * 3600) : eventStart;
     const requestUrl = `https://www.strava.com/api/v3/athlete/activities?after=${queryEpoch}&per_page=100`;
