@@ -10,13 +10,9 @@ Every athlete who has completed registration appears — **there is no eligibili
 
 ## Step 1 — Establish each athlete's window
 
-Every athlete is evaluated over a date range: **`[effective start date, today]`**.
+Every athlete is evaluated over a fixed date range: **`[EVENT_START_DATE, today]`** — the same start date for everyone, no exceptions.
 
-- **Effective start date** = the athlete's *earliest logged activity*, if that date is before the official event start (`EVENT_START_DATE`, default `2026-07-26`, configurable via env var).
-- Otherwise, effective start = the event start date itself.
-- An athlete with **zero activities** simply uses the event start date as-is — meaning an inactive athlete silently accumulates one break for every day since the event began.
-
-This "use their earliest activity if it's earlier" rule exists purely to support testing/simulation before the real event start; once the event start date has passed, it has no effect (every athlete's window begins on the same day).
+**Any activity dated before `EVENT_START_DATE` is ignored completely** — not counted toward `totalDistance`, `avgPaceSecPerKm`, breaks, or Perfect status. An athlete with zero activities *on or after* the event start silently accumulates one break for every elapsed day, even if they have plenty of activities logged before the event began.
 
 ## Step 2 — Classify every day in that window
 
@@ -122,6 +118,6 @@ The "Avg Pace" column shows `avgPaceSecPerKm` formatted as `M:SS /km` (`formatPa
 ## Known caveats
 
 - **"Today" is the real server clock**, not a fixed event date. If test/seed data is dated in the future relative to the actual server date, that athlete's window hasn't "started" yet and they'll show `breaks = 0, isPerfect = false` regardless of the pattern in their seeded data — this is expected, not a bug, but worth knowing when testing with fabricated dates.
-- **`EVENT_START_DATE` is configurable** via environment variable (defaults to `2026-07-26`) — changing it shifts every athlete's window start uniformly, except for athletes whose real earliest activity predates it.
+- **`EVENT_START_DATE` is configurable** via environment variable (defaults to `2026-07-26`) — changing it shifts every athlete's window start uniformly. Since the stored `is_consistent` flag (used by My Activities' Check 2 badges and the dashboard's Consistency Streak stat) isn't recalculated automatically when this changes, run a recalculation pass (`updateAllUserConsistency` per user) after moving the date so those stay in sync with the live leaderboard.
 - **Total Distance no longer affects rank at all** — it's shown purely for context. An athlete could log enormous distance and still rank below someone with a shorter but more consistent, faster-paced record.
 - **Average Pace still has no validity filter** — it's computed across every logged activity (valid or not), so a junk activity (wrong type, short distance) still pulls an athlete's average pace up or down even though it wouldn't count toward `breaks`/`isPerfect`.

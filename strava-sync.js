@@ -115,39 +115,35 @@ function getDateRange(startDateStr, endDateStr) {
 }
 
 /**
- * Check if the user has completed at least one valid activity for EVERY single day 
- * starting from 2026-07-26 up to targetDate.
+ * Check if the user has completed at least one valid activity for EVERY single
+ * day starting from EVENT_START_DATE up to targetDate. Activities logged
+ * before EVENT_START_DATE are never considered -- the window always starts
+ * on the official event start date, with no "use the athlete's earlier
+ * activity" testing allowance.
  */
 async function verifyDailyConsistency(userId, targetDate, activityType, distanceTarget) {
   const startConsistencyDate = EVENT_START_DATE;
-  
-  // Find the earliest activity date for this user to determine testing start date
-  const earliestRes = await db.query(
-    'SELECT MIN(activity_date) as earliest FROM activities WHERE user_id = $1 AND is_valid_distance = TRUE',
-    [userId]
-  );
-  const earliestDate = earliestRes.rows[0]?.earliest;
-  const effectiveStartDate = (earliestDate && earliestDate < startConsistencyDate) ? earliestDate : startConsistencyDate;
-  
-  // If the target date is before the effective start, consistency is technically valid (or doesn't apply yet)
-  if (targetDate < effectiveStartDate) {
-    return true;
+
+  // Should not be called for dates before the event start (the caller guards
+  // this), but stay safe: such a date can never be "consistent" under this rule.
+  if (targetDate < startConsistencyDate) {
+    return false;
   }
 
-  const requiredDates = getDateRange(effectiveStartDate, targetDate);
+  const requiredDates = getDateRange(startConsistencyDate, targetDate);
 
   // Fetch all activities done by this user that match the category type and exceed target distance
   // We check for these between the start date and targetDate
   const queryText = `
-    SELECT DISTINCT activity_date 
-    FROM activities 
-    WHERE user_id = $1 
-      AND activity_date >= $2 
+    SELECT DISTINCT activity_date
+    FROM activities
+    WHERE user_id = $1
+      AND activity_date >= $2
       AND activity_date <= $3
       AND is_valid_distance = TRUE
   `;
-  
-  const result = await db.query(queryText, [userId, effectiveStartDate, targetDate]);
+
+  const result = await db.query(queryText, [userId, startConsistencyDate, targetDate]);
   const completedDates = new Set(result.rows.map(r => r.activity_date));
 
   // Check if every required date is present in completedDates
@@ -196,8 +192,10 @@ async function verifyActivity(userId, activity) {
 
 /**
  * Recalculates and updates the consistency flag for all valid activities of a user.
- * Daily consistency means they have completed at least one valid activity daily from 2026-07-26
- * up to the date of that specific activity.
+ * Daily consistency means they have completed at least one valid activity daily
+ * from EVENT_START_DATE up to the date of that specific activity. Any activity
+ * dated before EVENT_START_DATE is ignored entirely -- always marked not
+ * consistent, regardless of distance/type -- since it falls outside the event window.
  */
 async function updateAllUserConsistency(userId) {
   // Get user profile
@@ -211,17 +209,17 @@ async function updateAllUserConsistency(userId) {
     'SELECT * FROM activities WHERE user_id = $1 ORDER BY activity_date ASC',
     [userId]
   );
-  
+
   const activities = actRes.rows;
 
   for (const act of activities) {
     let isConsistent = false;
-    
-    if (act.is_valid_distance) {
+
+    if (act.is_valid_distance && act.activity_date >= EVENT_START_DATE) {
       // Check consistency up to this activity's date
       isConsistent = await verifyDailyConsistency(userId, act.activity_date, user.activity_type, targetDist);
     }
-    
+
     await db.query(
       'UPDATE activities SET is_consistent = $1 WHERE id = $2',
       [isConsistent, act.id]

@@ -598,10 +598,9 @@ function dateRange(startStr, endStr) {
 // Every paid athlete in the selected category (and distance, if given) is
 // shown (no eligibility gate) and ranked using a "breaks" model instead of
 // the old all-or-nothing streak flag:
-//   - Window = [effective start date, today]. Effective start = the athlete's
-//     earliest activity if that's before the official event start (2026-07-26),
-//     otherwise the event start itself. Athletes with no activities use the
-//     event start as-is, so an inactive athlete accrues one break per elapsed day.
+//   - Window = [EVENT_START_DATE, today], fixed for every athlete. Any
+//     activity dated before EVENT_START_DATE is ignored entirely -- not
+//     counted toward distance, pace, breaks, or Perfect status.
 //   - A day is "covered" only if the athlete logged an activity of the CORRECT
 //     type that day (a wrong-type log counts as a break, same as no activity).
 //   - A covered day is "met" if that day's distance satisfies the target.
@@ -660,16 +659,18 @@ app.get('/api/leaderboard', async (req, res) => {
     const today = new Date().toISOString().slice(0, 10);
 
     let leaderboard = users.map(u => {
-      const acts = actsByUser[u.id] || [];
+      // Activities logged before the official event start are ignored
+      // entirely -- not counted toward distance, pace, breaks, or Perfect
+      // status. The window always starts on EVENT_START_DATE, with no
+      // "use the athlete's earlier activity" testing allowance.
+      const acts = (actsByUser[u.id] || []).filter(a => a.activity_date >= eventStartDate);
       const totalDistance = acts.reduce((sum, a) => sum + parseFloat(a.distance), 0);
       const totalElapsedSec = acts.reduce((sum, a) => sum + parseFloat(a.elapsed_time), 0);
       // Average pace across every logged activity (seconds per km) -- lower is
       // faster. Athletes with zero distance logged get Infinity so they never
       // win a pace tie-break.
       const avgPaceSecPerKm = totalDistance > 0 ? totalElapsedSec / totalDistance : Infinity;
-      const effectiveStart = (acts.length > 0 && acts[0].activity_date < eventStartDate)
-        ? acts[0].activity_date
-        : eventStartDate;
+      const effectiveStart = eventStartDate;
 
       let breaks = 0;
       let isPerfect = false;
