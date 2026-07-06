@@ -564,6 +564,20 @@ select option {
   border-radius: 10px;
 }
 
+/* Admin table has no mobile card equivalent (internal tool, not athlete-facing) --
+   stays visible on all screen sizes and just scrolls horizontally when narrow,
+   unlike .table-wrapper which is hidden below 600px in favor of .mobile-card-list. */
+.admin-table-wrapper {
+  overflow-x: auto;
+  border: 1px solid var(--border-card);
+  border-radius: 10px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.admin-table-wrapper table {
+  min-width: 640px;
+}
+
 /* Mobile Card List (replaces tables on small screens) */
 .mobile-card-list {
   display: none;
