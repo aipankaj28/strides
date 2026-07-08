@@ -308,6 +308,57 @@ app.post('/api/checkout', async (req, res) => {
 });
 
 // ---------------------------------------------------------
+// LEADERBOARD DATA-SHARING CONSENT
+// Required before connecting Strava -- see leaderboard_consent gate in
+// GET /api/leaderboard. Strava's API Agreement prohibits disclosing one
+// user's Strava-derived data to other users without explicit consent.
+// ---------------------------------------------------------
+
+app.post('/api/user/consent', async (req, res) => {
+  const { userId, consent } = req.body;
+
+  if (!userId || consent !== true) {
+    return res.status(400).json({ error: 'Consent must be explicitly granted.' });
+  }
+
+  try {
+    await db.query('UPDATE users SET leaderboard_consent = TRUE WHERE id = $1', [userId]);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error saving leaderboard consent:', error);
+    res.status(500).json({ error: 'Failed to save consent.' });
+  }
+});
+
+// ---------------------------------------------------------
+// SELF-SERVICE ACCOUNT DELETION
+// Permanently deletes the athlete's account and all associated Strava
+// data (activities cascade-delete via FK), per Strava API Agreement
+// data-retention/deletion obligations.
+// ---------------------------------------------------------
+
+app.post('/api/user/delete-account', async (req, res) => {
+  const { userId, email } = req.body;
+
+  if (!userId || !email) {
+    return res.status(400).json({ error: 'User ID and email confirmation are required.' });
+  }
+
+  try {
+    const userRes = await db.query('SELECT id FROM users WHERE id = $1 AND email = $2', [userId, email.toLowerCase().trim()]);
+    if (userRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Account not found or email does not match.' });
+    }
+
+    await db.query('DELETE FROM users WHERE id = $1', [userId]);
+    res.json({ success: true, message: 'Your account and all associated data have been permanently deleted.' });
+  } catch (error) {
+    console.error('Error deleting account:', error);
+    res.status(500).json({ error: 'Failed to delete account.' });
+  }
+});
+
+// ---------------------------------------------------------
 // STRAVA OAUTH FLOW APIS
 // ---------------------------------------------------------
 
@@ -637,7 +688,10 @@ app.get('/api/leaderboard', async (req, res) => {
   }
 
   try {
-    let userQuery = 'SELECT id, name, surname, activity_type, activity_distance FROM users WHERE is_paid = TRUE';
+    // leaderboard_consent gate: Strava's API Agreement prohibits disclosing
+    // one user's Strava-derived data to other users without explicit
+    // consent. Only athletes who've opted in appear here.
+    let userQuery = 'SELECT id, name, surname, activity_type, activity_distance FROM users WHERE is_paid = TRUE AND leaderboard_consent = TRUE';
     const params = [];
     if (category) {
       params.push(category);

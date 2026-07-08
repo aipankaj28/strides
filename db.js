@@ -190,6 +190,17 @@ async function initDb() {
         // Safe to ignore if column is already present
       }
 
+      // Explicit consent to have Strava-derived activity data (distance, pace,
+      // consistency status) shown on the public Global Leaderboard to other
+      // athletes -- required before connecting Strava, per Strava's API
+      // Agreement restriction on disclosing one user's data to other users.
+      try {
+        await query('ALTER TABLE users ADD COLUMN leaderboard_consent BOOLEAN DEFAULT FALSE');
+        console.log('Database Schema Migration: Added leaderboard_consent column to users table.');
+      } catch (err) {
+        // Safe to ignore if column is already present
+      }
+
       // DB-level backstop preventing two accounts from linking the same Strava
       // athlete (the app-level check in server.js is the primary guard; this
       // catches any race condition or code path that bypasses it). Partial

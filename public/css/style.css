@@ -460,14 +460,17 @@ select option {
   border: 1px solid rgba(240, 90, 40, 0.4);
 }
 
-.btn-strava-link {
-  background: #f05a28;
+/* Strava's official brand orange (#FC5200) and required minimum 48px height
+   per their brand guidelines for the "Connect with Strava" button. */
+.btn-strava-connect {
+  background: #FC5200;
   color: white;
   border: none;
   font-weight: 700;
   font-size: 0.95rem;
   border-radius: 8px;
   padding: 0.75rem 1.25rem;
+  min-height: 48px;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -475,12 +478,18 @@ select option {
   gap: 0.5rem;
   width: 100%;
   transition: var(--transition);
-  box-shadow: 0 4px 12px rgba(240, 90, 40, 0.2);
+  box-shadow: 0 4px 12px rgba(252, 82, 0, 0.25);
 }
 
-.btn-strava-link:hover {
-  background: #fc612c;
+.btn-strava-connect:hover {
+  background: #e04900;
   transform: translateY(-1px);
+}
+
+.btn-strava-connect:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
 }
 
 /* Stats Cards */

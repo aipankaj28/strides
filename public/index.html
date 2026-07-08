@@ -51,9 +51,46 @@
           </div>
         </div>
 
-        <a href="#" onclick="event.preventDefault(); app.switchView('admin-login');" style="display: inline-block; margin-top: 1.5rem; font-size: 0.8rem; color: var(--text-secondary);">
-          <i class="fa-solid fa-user-shield"></i> Admin
-        </a>
+        <div style="margin-top: 1.5rem; display: flex; justify-content: center; gap: 1.25rem; flex-wrap: wrap;">
+          <a href="#" onclick="event.preventDefault(); app.switchView('admin-login');" style="font-size: 0.8rem; color: var(--text-secondary);">
+            <i class="fa-solid fa-user-shield"></i> Admin
+          </a>
+          <a href="#" onclick="event.preventDefault(); app.switchView('privacy-policy');" style="font-size: 0.8rem; color: var(--text-secondary);">Privacy Policy</a>
+          <a href="#" onclick="event.preventDefault(); app.switchView('terms-of-service');" style="font-size: 0.8rem; color: var(--text-secondary);">Terms of Service</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- 1d. PRIVACY POLICY VIEW -->
+    <section id="view-privacy-policy" class="view-section">
+      <div class="glass-card" style="max-width: 750px; margin: 0 auto; text-align: left;">
+        <h2 class="card-title">Privacy Policy</h2>
+        <div style="font-size: 0.9rem; color: var(--text-secondary); line-height: 1.7;">
+          <p><strong style="color: var(--text-primary);">Data we collect:</strong> Name, email, mobile number, your selected event category/distance, and — once you connect Strava — your activity data (type, distance, elapsed time, date, and GPS presence) for activities matching your registered event window.</p>
+          <p><strong style="color: var(--text-primary);">How we use it:</strong> To verify your event participation (distance and consistency checks) and to calculate and display Global Leaderboard rankings.</p>
+          <p><strong style="color: var(--text-primary);">Sharing with other athletes:</strong> We only display your total distance, average pace, and consistency status on the public Global Leaderboard if you have explicitly consented to this when connecting your Strava account. You may withdraw this consent at any time by <a href="mailto:support@21x21challenge.com" style="color: var(--primary);">contacting us</a>. We never share your raw Strava activity data, GPS routes, or personal contact details with other athletes.</p>
+          <p><strong style="color: var(--text-primary);">Data retention:</strong> Your data is retained for the duration of the event and a reasonable period afterward for results verification. You may request deletion of your account and all associated data at any time via the "Delete My Account" option in your dashboard, or by contacting us.</p>
+          <p><strong style="color: var(--text-primary);">Strava data specifically:</strong> If you disconnect or revoke Strava access (via Strava's own settings or our app), we stop syncing new activities and clear your stored Strava tokens immediately. Previously synced activity records are deleted along with your account upon deletion request.</p>
+          <p><strong style="color: var(--text-primary);">Security:</strong> Passwords are hashed (never stored in plain text). Strava access tokens are stored server-side and never exposed to other users.</p>
+          <p><strong style="color: var(--text-primary);">Contact:</strong> For any privacy questions or data requests, contact <a href="mailto:support@21x21challenge.com" style="color: var(--primary);">support@21x21challenge.com</a>.</p>
+        </div>
+        <button type="button" class="btn-secondary" onclick="app.switchView('gate')" style="margin-top: 1.5rem;">Back</button>
+      </div>
+    </section>
+
+    <!-- 1e. TERMS OF SERVICE VIEW -->
+    <section id="view-terms-of-service" class="view-section">
+      <div class="glass-card" style="max-width: 750px; margin: 0 auto; text-align: left;">
+        <h2 class="card-title">Terms of Service</h2>
+        <div style="font-size: 0.9rem; color: var(--text-secondary); line-height: 1.7;">
+          <p><strong style="color: var(--text-primary);">Eligibility:</strong> By registering, you confirm the information you provide is accurate and that you are participating voluntarily and at your own risk.</p>
+          <p><strong style="color: var(--text-primary);">Strava connection:</strong> Connecting your Strava account is mandatory to participate. You are responsible for keeping your Strava profile public so your activities can be verified, and for the accuracy of the activities you log.</p>
+          <p><strong style="color: var(--text-primary);">Fair play:</strong> Manually-entered Strava activities (no device/GPS data) are not counted toward your consistency streak or leaderboard ranking. Attempting to manipulate rankings through fraudulent activity data may result in disqualification.</p>
+          <p><strong style="color: var(--text-primary);">Leaderboard display:</strong> If you consent to leaderboard data sharing, your total distance, pace, and consistency status will be visible to other registered athletes for the duration of the event.</p>
+          <p><strong style="color: var(--text-primary);">Account termination:</strong> You may delete your account at any time. We may suspend or remove accounts found to violate fair play rules or these terms.</p>
+          <p><strong style="color: var(--text-primary);">Changes:</strong> These terms may be updated from time to time; continued use of the app after changes constitutes acceptance.</p>
+        </div>
+        <button type="button" class="btn-secondary" onclick="app.switchView('gate')" style="margin-top: 1.5rem;">Back</button>
       </div>
     </section>
 
@@ -317,10 +354,17 @@
             <i class="fa-solid fa-circle-info"></i> <strong>Important:</strong> You must make your Strava profile <strong>Public</strong>. Private profile data cannot be retrieved by our synchronization server.
           </div>
 
-          <button class="btn-strava-link" onclick="app.connectStrava()">
-            <i class="fa-brands fa-strava"></i> Authorize via Strava OAuth
+          <label style="display: flex; align-items: flex-start; gap: 0.5rem; font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 1.25rem; cursor: pointer;">
+            <input type="checkbox" id="leaderboard-consent-checkbox" style="margin-top: 0.2rem;">
+            <span>I consent to my activity data (distance, pace, and consistency status derived from Strava) being displayed on the public Global Leaderboard, visible to other registered athletes in this event.</span>
+          </label>
+
+          <button class="btn-strava-connect" id="connect-strava-btn" onclick="app.connectStrava()">
+            <i class="fa-brands fa-strava"></i> Connect with Strava
           </button>
         </div>
+
+        <p style="font-size: 0.7rem; color: var(--text-secondary); margin-top: 1.25rem;">Powered by Strava</p>
       </div>
     </section>
 
@@ -352,12 +396,29 @@
             <div id="strava-status-badge" class="strava-badge disconnected" style="margin-bottom: 1rem;">
               <i class="fa-solid fa-circle-xmark"></i> Not Connected
             </div>
-            <button class="btn-strava-link" id="dash-strava-btn" onclick="app.connectStrava()">
-              <i class="fa-brands fa-strava"></i> Link Account
+            <button class="btn-strava-connect" id="dash-strava-btn" onclick="app.connectStrava()">
+              <i class="fa-brands fa-strava"></i> Connect with Strava
             </button>
             <p style="font-size: 0.75rem; color: var(--text-secondary); text-align: center; margin-top: 0.75rem; line-height: 1.3;">
               Ensure your profile is public to sync activities properly.
             </p>
+            <p style="font-size: 0.7rem; color: var(--text-secondary); text-align: center; margin-top: 0.5rem;">Powered by Strava</p>
+          </div>
+
+          <!-- Shown only for athletes who connected Strava before the leaderboard
+               consent requirement existed -- lets them opt in retroactively. -->
+          <div class="glass-card" id="legacy-consent-card" style="padding: 1.25rem; display: none; border-color: rgba(240, 90, 40, 0.3);">
+            <p style="font-size: 0.8rem; color: var(--text-primary); margin-bottom: 0.75rem; line-height: 1.4;">
+              <i class="fa-solid fa-circle-info" style="color: #f05a28;"></i> To appear on the Global Leaderboard, please confirm you consent to your activity data being shown to other athletes.
+            </p>
+            <button class="btn-secondary btn-block" onclick="app.grantLeaderboardConsent()">I Consent — Show Me on the Leaderboard</button>
+          </div>
+
+          <!-- Account settings / deletion -->
+          <div class="glass-card" style="padding: 1.25rem;">
+            <button class="btn-secondary btn-block" style="color: var(--danger); border-color: rgba(239, 68, 68, 0.3);" onclick="app.openDeleteAccountOverlay()">
+              <i class="fa-solid fa-trash"></i> Delete My Account
+            </button>
           </div>
         </div>
 
@@ -590,6 +651,28 @@
 
   <!-- Sidebar Backdrop overlay for mobile -->
   <div id="sidebar-backdrop" class="sidebar-backdrop" onclick="app.toggleProfileSidebar()"></div>
+
+  <!-- Standalone overlay for the Delete Account confirmation (rendered on top
+       of whatever view is active, since it's reachable only from the dashboard). -->
+  <div id="delete-account-overlay" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 2000; align-items: center; justify-content: center; padding: 1rem;">
+    <div class="glass-card" style="max-width: 450px; width: 100%; text-align: left;">
+      <h2 class="card-title" style="color: var(--danger);"><i class="fa-solid fa-triangle-exclamation"></i> Delete Account</h2>
+      <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1.25rem; line-height: 1.5;">
+        This permanently deletes your account, your Strava connection, and all your logged activity history. This cannot be undone. Type your email address to confirm.
+      </p>
+      <div class="form-group" style="margin-bottom: 1.25rem;">
+        <label for="delete-account-email-input">Your Email Address</label>
+        <input type="email" id="delete-account-email-input" placeholder="you@example.com">
+      </div>
+      <div id="delete-account-error" style="color: var(--danger); font-size: 0.85rem; margin-bottom: 1rem; display: none;"></div>
+      <div style="display: flex; gap: 1rem;">
+        <button type="button" class="btn-secondary" onclick="app.closeDeleteAccountOverlay()" style="flex: 1;">Cancel</button>
+        <button type="button" class="btn-primary" style="flex: 2; background: var(--danger);" onclick="app.confirmDeleteAccount()">
+          <i class="fa-solid fa-trash"></i> Permanently Delete
+        </button>
+      </div>
+    </div>
+  </div>
 
   <script src="js/app.js"></script>
 </body>

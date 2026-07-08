@@ -496,6 +496,8 @@ const app = {
     else if (cleanHash === '#/reset-password' && state.resetPasswordEmail) this.switchView('reset-password');
     else if (cleanHash === '#/admin-login') this.switchView('admin-login');
     else if (cleanHash === '#/admin-dashboard' && state.adminSecret) this.switchView('admin-dashboard');
+    else if (cleanHash === '#/privacy-policy') this.switchView('privacy-policy');
+    else if (cleanHash === '#/terms-of-service') this.switchView('terms-of-service');
     else if (cleanHash === '#/signup') this.switchView('signup');
     else if (cleanHash === '#/cart' && state.currentUser) this.switchView('cart');
     else if (cleanHash === '#/connect-strava' && state.currentUser) this.switchView('connect-strava');
@@ -776,7 +778,25 @@ const app = {
 
   async connectStrava() {
     if (!state.currentUser) return;
+
+    // The consent checkbox only exists on the mandatory Connect Strava view
+    // (first-time connection). Reconnecting from the dashboard after already
+    // having consented doesn't need to ask again.
+    const consentCheckbox = document.getElementById('leaderboard-consent-checkbox');
+    if (consentCheckbox && !consentCheckbox.checked) {
+      alert('Please check the consent box before connecting your Strava account.');
+      return;
+    }
+
     try {
+      if (consentCheckbox && consentCheckbox.checked) {
+        await fetch('/api/user/consent', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: state.currentUser.id, consent: true })
+        });
+      }
+
       const res = await fetch(`/api/auth/strava?userId=${state.currentUser.id}`);
       const data = await res.json();
       if (data.url) {
@@ -787,6 +807,76 @@ const app = {
     } catch (err) {
       console.error(err);
       alert('Error initiating Strava authorize redirect.');
+    }
+  },
+
+  // Lets athletes who connected Strava before the consent requirement existed
+  // opt in retroactively so they appear on the Global Leaderboard.
+  async grantLeaderboardConsent() {
+    if (!state.currentUser) return;
+    try {
+      const res = await fetch('/api/user/consent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: state.currentUser.id, consent: true })
+      });
+      if (res.ok) {
+        state.currentUser.leaderboard_consent = true;
+        document.getElementById('legacy-consent-card').style.display = 'none';
+      } else {
+        alert('Could not save your consent. Please try again.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Connection error saving consent.');
+    }
+  },
+
+  openDeleteAccountOverlay() {
+    document.getElementById('delete-account-email-input').value = '';
+    document.getElementById('delete-account-error').style.display = 'none';
+    document.getElementById('delete-account-overlay').style.display = 'flex';
+  },
+
+  closeDeleteAccountOverlay() {
+    document.getElementById('delete-account-overlay').style.display = 'none';
+  },
+
+  async confirmDeleteAccount() {
+    if (!state.currentUser) return;
+    const email = document.getElementById('delete-account-email-input').value.trim();
+    const errorEl = document.getElementById('delete-account-error');
+    errorEl.style.display = 'none';
+
+    if (email.toLowerCase() !== state.currentUser.email.toLowerCase()) {
+      errorEl.textContent = 'Email does not match your account. Please try again.';
+      errorEl.style.display = 'block';
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/user/delete-account', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: state.currentUser.id, email })
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        errorEl.textContent = data.error || 'Could not delete account.';
+        errorEl.style.display = 'block';
+        return;
+      }
+
+      alert('Your account and all associated data have been permanently deleted.');
+      state.currentUser = null;
+      localStorage.removeItem('athlete_email');
+      this.closeDeleteAccountOverlay();
+      this.switchView('gate');
+    } catch (err) {
+      console.error(err);
+      errorEl.textContent = 'Connection error deleting account.';
+      errorEl.style.display = 'block';
     }
   },
 
@@ -827,11 +917,19 @@ const app = {
       if (data.user.strava_access_token) {
         statusBadge.className = 'strava-badge connected';
         statusBadge.innerHTML = `<i class="fa-solid fa-circle-check"></i> Connected (${data.user.strava_id})`;
-        dashStravaBtn.innerHTML = `<i class="fa-brands fa-strava"></i> Reconnect Strava`;
+        dashStravaBtn.innerHTML = `<i class="fa-brands fa-strava"></i> Reconnect with Strava`;
       } else {
         statusBadge.className = 'strava-badge disconnected';
         statusBadge.innerHTML = `<i class="fa-solid fa-circle-xmark"></i> Not Linked`;
-        dashStravaBtn.innerHTML = `<i class="fa-brands fa-strava"></i> Connect Strava`;
+        dashStravaBtn.innerHTML = `<i class="fa-brands fa-strava"></i> Connect with Strava`;
+      }
+
+      // Athletes who connected Strava before the leaderboard consent
+      // requirement existed won't have leaderboard_consent set -- prompt
+      // them to opt in retroactively so they can appear on the leaderboard.
+      const legacyConsentCard = document.getElementById('legacy-consent-card');
+      if (legacyConsentCard) {
+        legacyConsentCard.style.display = (data.user.strava_access_token && !data.user.leaderboard_consent) ? 'block' : 'none';
       }
 
       // Metric Summary Boxes
