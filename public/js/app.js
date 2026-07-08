@@ -1096,7 +1096,7 @@ const app = {
         const emptyMsg = 'No athletes registered for this event yet.';
         tbody.innerHTML = `
           <tr>
-            <td colspan="6" style="text-align: center; color: var(--text-secondary); padding: 2rem;">
+            <td colspan="5" style="text-align: center; color: var(--text-secondary); padding: 2rem;">
               ${emptyMsg}
             </td>
           </tr>
@@ -1126,7 +1126,6 @@ const app = {
           <td><strong>${item.name}</strong></td>
           <td style="text-transform: capitalize;">${item.category} (${item.targetDistance})</td>
           <td style="color: ${status.color}; font-weight: 700;">${status.label}</td>
-          <td>${item.totalDistance.toFixed(2)} km</td>
           <td>${paceLabel}</td>
         `;
         tbody.appendChild(tr);
@@ -1140,10 +1139,6 @@ const app = {
             <div class="leaderboard-card-meta">${item.category} (${item.targetDistance})</div>
           </div>
           <div class="leaderboard-card-stats">
-            <div class="leaderboard-card-stat-row">
-              <span class="leaderboard-card-stat-label">Total Distance</span>
-              <span class="leaderboard-card-distance">${item.totalDistance.toFixed(2)} km</span>
-            </div>
             <div class="leaderboard-card-stat-row">
               <span class="leaderboard-card-stat-label">Pace</span>
               <span class="leaderboard-card-distance">${paceLabel}</span>
