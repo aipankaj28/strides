@@ -971,18 +971,40 @@ app.post('/api/admin/sync-all', isDevMode, async (req, res) => {
 // SERVER INITIALIZATION
 // ---------------------------------------------------------
 
+// Returns ms until the next 8:00 PM IST (UTC+5:30), regardless of the
+// server's own timezone. Mirrors the getTodayIST() trick elsewhere: shift
+// "now" by the IST offset so its UTC getter fields read as IST wall-clock
+// time, build the 8 PM target from those fields, then diff -- the offset
+// cancels out, leaving the correct real-world delay.
+function msUntilNextIST8PM() {
+  const nowIST = new Date(Date.now() + IST_OFFSET_MS);
+  const target = new Date(Date.UTC(nowIST.getUTCFullYear(), nowIST.getUTCMonth(), nowIST.getUTCDate(), 20, 0, 0, 0));
+  if (target <= nowIST) {
+    target.setUTCDate(target.getUTCDate() + 1);
+  }
+  return target.getTime() - nowIST.getTime();
+}
+
+// Fallback sync cron — runs once nightly at 8:00 PM IST to catch any
+// activities missed by webhooks. Skips users synced within the last 6
+// hours (see syncAllUsers), so normal webhook-driven updates don't burn
+// any API quota here; this is purely a catch-up net for missed deliveries.
+function scheduleNightlyFallbackSync() {
+  const delay = msUntilNextIST8PM();
+  console.log(`[Cron] Next fallback Strava sync scheduled in ${Math.round(delay / 60000)} minutes (8:00 PM IST).`);
+  setTimeout(() => {
+    stravaSync.syncAllUsers();
+    setInterval(() => stravaSync.syncAllUsers(), 24 * 60 * 60 * 1000);
+  }, delay);
+}
+
 app.listen(PORT, async () => {
   // Initialize Database tables
   await db.initDb();
-  
+
   // Email configuration removed
 
   console.log(`Strides Web App is running on port ${PORT}`);
 
-  // Fallback sync cron — runs every 6 hours to catch any activities missed by webhooks.
-  // Skips users synced within the last 6 hours so normal webhook-driven updates
-  // don't burn any API quota here.
-  setInterval(() => {
-    stravaSync.syncAllUsers();
-  }, 6 * 60 * 60 * 1000);
+  scheduleNightlyFallbackSync();
 });
