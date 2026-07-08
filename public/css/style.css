@@ -93,23 +93,10 @@ header {
   font-family: var(--font-title);
   font-weight: 800;
   font-size: 1.8rem;
-  background: linear-gradient(135deg, var(--secondary) 0%, var(--primary) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: #ffffff;
   display: flex;
   align-items: center;
   gap: 0.5rem;
-}
-
-.logo span {
-  font-weight: 400;
-  font-size: 0.9rem;
-  color: var(--text-secondary);
-  border: 1px solid var(--border-card);
-  padding: 0.2rem 0.5rem;
-  border-radius: 6px;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
 }
 
 .btn-logout {
@@ -993,11 +980,6 @@ tbody tr:hover {
     width: 34px !important;
     height: 34px !important;
     border-radius: 9px !important;
-  }
-
-  /* "Athlete Portal" pill is redundant once inside the app — drop it on mobile to keep the header one slim row */
-  .logo span {
-    display: none;
   }
 
   .glass-card {
