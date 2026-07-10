@@ -211,6 +211,8 @@ const app = {
       e.preventDefault();
       const name = document.getElementById('signup-name').value;
       const surname = document.getElementById('signup-surname').value;
+      const dob = document.getElementById('signup-dob').value;
+      const gender = document.getElementById('signup-gender').value;
       const email = document.getElementById('signup-email').value;
       const mobile = document.getElementById('signup-mobile').value;
       const password = document.getElementById('signup-password').value;
@@ -236,7 +238,7 @@ const app = {
         const res = await fetch('/api/signup', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, surname, email, mobile, password })
+          body: JSON.stringify({ name, surname, dob, gender, email, mobile, password })
         });
         const data = await res.json();
         
@@ -904,6 +906,8 @@ const app = {
       document.getElementById('dash-avatar').textContent = user.name[0].toUpperCase() + user.surname[0].toUpperCase();
       document.getElementById('dash-name').textContent = `${data.user.name} ${data.user.surname}`;
       document.getElementById('dash-email').textContent = data.user.email;
+      document.getElementById('dash-age').textContent = data.user.dob ? this.calculateAge(data.user.dob) + ' years' : '--';
+      document.getElementById('dash-gender').textContent = data.user.gender || '--';
       const tierLabel = data.user.activity_tier
         ? ` — ${data.user.activity_tier.charAt(0).toUpperCase() + data.user.activity_tier.slice(1)}`
         : '';
@@ -1172,6 +1176,17 @@ const app = {
     const mins = Math.floor(secPerKm / 60);
     const secs = Math.round(secPerKm % 60);
     return `${mins}:${String(secs).padStart(2, '0')} /km`;
+  },
+
+  calculateAge(dobStr) {
+    const birthDate = new Date(dobStr);
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const m = today.getMonth() - birthDate.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    return age;
   },
 
   // ---------------------------------------------------------

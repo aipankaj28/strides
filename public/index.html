@@ -235,6 +235,19 @@
               <input type="text" id="signup-surname" required placeholder="Enter surname">
             </div>
             <div class="form-group">
+              <label for="signup-dob">Date of Birth</label>
+              <input type="date" id="signup-dob" required>
+            </div>
+            <div class="form-group">
+              <label for="signup-gender">Gender</label>
+              <select id="signup-gender" required>
+                <option value="" disabled selected>Select gender</option>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            <div class="form-group">
               <label for="signup-email">Email Address</label>
               <input type="email" id="signup-email" required placeholder="you@example.com">
             </div>
@@ -384,6 +397,14 @@
             <p class="profile-email" id="dash-email">athlete@domain.com</p>
             
             <div class="profile-details">
+              <div class="profile-detail-row">
+                <span>Age:</span>
+                <span id="dash-age">--</span>
+              </div>
+              <div class="profile-detail-row">
+                <span>Gender:</span>
+                <span id="dash-gender" style="text-transform: capitalize;">--</span>
+              </div>
               <div class="profile-detail-row">
                 <span>Registered Event:</span>
                 <span id="dash-event" style="text-transform: capitalize; font-weight: 600; color: var(--primary);">--</span>
