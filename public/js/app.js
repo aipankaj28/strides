@@ -1066,12 +1066,16 @@ const app = {
     document.querySelectorAll('.subtab-btn').forEach(btn => btn.classList.remove('active'));
     document.getElementById(`subtab-${category}`).classList.add('active');
 
-    // Only Run/Cycle have a distance filter; show the matching one and reset
-    // both so a stale filter from the previous tab doesn't carry over.
+    // Run and Cycle are always ranked by a specific distance -- there is no
+    // combined "all distances" view. Reset each select back to its lowest
+    // distance (the last option) so switching tabs always lands on the
+    // default rather than carrying over a stale filter.
+    const runSelect = document.getElementById('leaderboard-distance-run');
+    const cycleSelect = document.getElementById('leaderboard-distance-cycle');
     const runWrap = document.getElementById('leaderboard-distance-run-wrap');
     const cycleWrap = document.getElementById('leaderboard-distance-cycle-wrap');
-    document.getElementById('leaderboard-distance-run').value = '';
-    document.getElementById('leaderboard-distance-cycle').value = '';
+    runSelect.selectedIndex = runSelect.options.length - 1;
+    cycleSelect.selectedIndex = cycleSelect.options.length - 1;
     if (runWrap) runWrap.style.display = category === 'run' ? '' : 'none';
     if (cycleWrap) cycleWrap.style.display = category === 'cycle' ? '' : 'none';
 
@@ -1097,7 +1101,9 @@ const app = {
       cardList.innerHTML = '';
 
       if (data.length === 0) {
-        const emptyMsg = 'No athletes registered for this event yet.';
+        const emptyMsg = distance
+          ? `No athletes registered for the ${distance.toUpperCase()} distance yet.`
+          : 'No athletes registered for this event yet.';
         tbody.innerHTML = `
           <tr>
             <td colspan="5" style="text-align: center; color: var(--text-secondary); padding: 2rem;">
