@@ -347,9 +347,23 @@ app.post('/api/user/delete-account', async (req, res) => {
   }
 
   try {
-    const userRes = await db.query('SELECT id FROM users WHERE id = $1 AND email = $2', [userId, email.toLowerCase().trim()]);
+    const userRes = await db.query('SELECT * FROM users WHERE id = $1 AND email = $2', [userId, email.toLowerCase().trim()]);
     if (userRes.rows.length === 0) {
       return res.status(404).json({ error: 'Account not found or email does not match.' });
+    }
+
+    // Proactively revoke our app's access on Strava's side before deleting, so
+    // this athlete drops off our connected-athlete count with Strava (required
+    // for capacity increases). Best-effort: if Strava is unreachable or the
+    // token is already dead, still delete the local account.
+    const user = userRes.rows[0];
+    if (user.strava_access_token) {
+      try {
+        const accessToken = await stravaSync.getValidAccessToken(user);
+        if (accessToken) await stravaSync.deauthorizeOnStrava(accessToken);
+      } catch (deauthErr) {
+        console.error(`[Delete Account] Strava deauthorize failed for ${user.email} (deleting anyway):`, deauthErr.message);
+      }
     }
 
     await db.query('DELETE FROM users WHERE id = $1', [userId]);

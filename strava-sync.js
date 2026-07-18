@@ -326,7 +326,12 @@ async function refreshStravaToken(refreshToken) {
   if (!response.ok) {
     const errText = await response.text();
     console.error(`[Strava API] Token Refresh Error Response: ${errText}`);
-    throw new Error(`Strava Token Refresh failed: ${errText}`);
+    const err = new Error(`Strava Token Refresh failed: ${errText}`);
+    // Surface the HTTP status so callers can tell a permanently-invalid
+    // refresh token (400/401 -- athlete revoked access) apart from a
+    // transient failure (network/5xx) and react accordingly.
+    err.status = response.status;
+    throw err;
   }
 
   const data = await response.json();
@@ -374,6 +379,17 @@ async function getValidAccessToken(user) {
       console.log(`Successfully refreshed Strava token for user: ${user.email}`);
     } catch (error) {
       console.error(`Failed to refresh token for user ${user.email}:`, error);
+      // A 400/401 from Strava's token endpoint means the refresh token is no
+      // longer valid -- almost always because the athlete revoked access from
+      // Strava's own settings, so we never received a deauthorization webhook.
+      // Clear the dead tokens so the athlete stops counting as connected and
+      // the nightly fallback cron stops retrying them forever. Transient
+      // failures (network, 5xx) are left untouched so a temporary Strava
+      // outage doesn't disconnect every athlete.
+      if (error.status === 400 || error.status === 401) {
+        await clearStravaTokensByUserId(user.id);
+        console.log(`Cleared invalid Strava tokens for user ${user.email} (refresh rejected with ${error.status}).`);
+      }
       return null;
     }
   }
@@ -472,15 +488,55 @@ async function removeActivity(userId, stravaActivityId) {
   await updateAllUserConsistency(userId);
 }
 
+// The columns wiped whenever an athlete disconnects, by either path
+// (deauthorization webhook, or a refresh token Strava has invalidated).
+const CLEAR_STRAVA_TOKENS_SET =
+  'strava_access_token = NULL, strava_refresh_token = NULL, strava_token_expires_at = NULL, strava_profile_public = FALSE';
+
 /**
  * Clears stored Strava tokens for an athlete who revoked access
- * (Strava "deauthorization" webhook event).
+ * (Strava "deauthorization" webhook event), keyed by Strava athlete ID.
  */
 async function deauthorizeAthlete(stravaAthleteId) {
   await db.query(
-    `UPDATE users SET strava_access_token = NULL, strava_refresh_token = NULL, strava_token_expires_at = NULL, strava_profile_public = FALSE WHERE strava_id = $1`,
+    `UPDATE users SET ${CLEAR_STRAVA_TOKENS_SET} WHERE strava_id = $1`,
     [String(stravaAthleteId)]
   );
+}
+
+/**
+ * Clears stored Strava tokens for a specific internal user, keyed by our own
+ * user id. Used when a token refresh is rejected as permanently invalid (the
+ * athlete revoked access without a webhook reaching us), so the athlete stops
+ * counting as connected and the fallback cron stops retrying a dead token.
+ */
+async function clearStravaTokensByUserId(userId) {
+  await db.query(
+    `UPDATE users SET ${CLEAR_STRAVA_TOKENS_SET} WHERE id = $1`,
+    [userId]
+  );
+}
+
+/**
+ * Tells Strava to revoke our app's access for this athlete via
+ * POST /oauth/deauthorize, which drops them from our app's connected-athlete
+ * count on Strava's side. Call this when an athlete disconnects or deletes
+ * their account so Strava's own count reflects reality (a precondition for
+ * capacity increases). Best-effort: throws on failure so callers can log it,
+ * but callers must not let a failure here block local account deletion.
+ */
+async function deauthorizeOnStrava(accessToken) {
+  if (!accessToken || accessToken.startsWith('mock_')) return false;
+  const response = await fetch('https://www.strava.com/oauth/deauthorize', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}` }
+  });
+  console.log(`[Strava API] Deauthorize Response Status: ${response.status}`);
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Strava deauthorize failed (${response.status}): ${errText}`);
+  }
+  return true;
 }
 
 /**
@@ -667,6 +723,9 @@ module.exports = {
   fetchAndSaveActivity,
   removeActivity,
   deauthorizeAthlete,
+  clearStravaTokensByUserId,
+  deauthorizeOnStrava,
+  getValidAccessToken,
   findUserByStravaId,
   createPushSubscription,
   viewPushSubscription,
